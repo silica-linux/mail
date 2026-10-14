@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -211,8 +212,48 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
-  String get engineMissing =>
-      'Il motore della posta non è attivo: vedi messaggi di esempio.';
+  String get sampleData =>
+      'Posta di esempio per lo sviluppo (MAIL_SAMPLE_DATA): nessun account reale.';
+
+  @override
+  String get engineUnavailable =>
+      'Mail non riesce a raggiungere il servizio di posta';
+
+  @override
+  String get engineUnavailableHint =>
+      'Il servizio che scarica e invia la posta non si è avviato. Controlla che Mail sia installato completamente, poi riprova.';
+
+  @override
+  String get tryAgain => 'Riprova';
+
+  @override
+  String get engineStarting => 'Avvio…';
+
+  @override
+  String settingsNotFound(String error) {
+    return 'Le impostazioni di questo indirizzo non sono state trovate ($error). Inserisci i server qui sotto.';
+  }
+
+  @override
+  String get serverSettingsInvalid =>
+      'Inserisci entrambi i server e le loro porte (1–65535).';
+
+  @override
+  String get port => 'Porta';
+
+  @override
+  String get userName => 'Nome utente';
+
+  @override
+  String get editServerSettings => 'Modifica impostazioni server…';
+
+  @override
+  String get googleAppPassword =>
+      'L\'accesso con la pagina dell\'account Google non è ancora supportato. Usa una password per le app, creata nelle impostazioni di sicurezza del tuo account Google (serve la verifica in due passaggi).';
+
+  @override
+  String get microsoftNotSupported =>
+      'Gli account Microsoft accedono solo tramite la pagina di Microsoft, che Mail non supporta ancora.';
 
   @override
   String syncFailed(String account, String error) {

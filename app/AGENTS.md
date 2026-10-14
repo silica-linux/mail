@@ -16,8 +16,9 @@ never crash, everything is a command, measured parity, English everywhere). On t
 
 - The app never speaks IMAP or SMTP and never stores credentials: everything goes through
   `MailService` (`lib/src/service.dart`). In Silica it is the engine on the session bus
-  (`dev.frascella.Mail1`, `engine/` in this repository); in tests and without the engine it is
-  `FakeMailService`.
+  (`dev.frascella.Mail1`, `engine/` in this repository), started by D-Bus activation; in tests,
+  and in development with `MAIL_SAMPLE_DATA=1`, it is `FakeMailService`. Without the engine the
+  window says so and offers to try again: never sample mail in place of the user's.
 - HTML mail is rendered by `lib/src/html.dart`: no scripts, no styles, no network unless the user
   loads remote content for that message; only `http`, `https` and `mailto` links reach the
   system handler.

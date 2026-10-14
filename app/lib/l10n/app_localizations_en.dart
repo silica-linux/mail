@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -210,8 +211,47 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get engineMissing =>
-      'The mail engine is not running: showing sample mail.';
+  String get sampleData =>
+      'Sample mail for development (MAIL_SAMPLE_DATA): no real account.';
+
+  @override
+  String get engineUnavailable => 'Mail can\'t reach its mail service';
+
+  @override
+  String get engineUnavailableHint =>
+      'The service that downloads and sends mail didn\'t start. Check that Mail is installed completely, then try again.';
+
+  @override
+  String get tryAgain => 'Try Again';
+
+  @override
+  String get engineStarting => 'Starting…';
+
+  @override
+  String settingsNotFound(String error) {
+    return 'The settings of this address were not found ($error). Enter the servers below.';
+  }
+
+  @override
+  String get serverSettingsInvalid =>
+      'Enter both servers and their ports (1–65535).';
+
+  @override
+  String get port => 'Port';
+
+  @override
+  String get userName => 'User name';
+
+  @override
+  String get editServerSettings => 'Edit Server Settings…';
+
+  @override
+  String get googleAppPassword =>
+      'Signing in with a Google account page isn\'t supported yet. Use an app password, created in your Google account\'s security settings (2-step verification is required).';
+
+  @override
+  String get microsoftNotSupported =>
+      'Microsoft accounts sign in only through Microsoft\'s page, which Mail doesn\'t support yet.';
 
   @override
   String syncFailed(String account, String error) {

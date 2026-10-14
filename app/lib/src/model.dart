@@ -286,6 +286,37 @@ class Draft {
   };
 }
 
+/// How a mail connection is secured (the engine refuses plain text over a network).
+enum MailTls {
+  /// Implicit TLS from the first byte (IMAP 993, SMTP 465).
+  tls,
+
+  /// Plain connection upgraded with STARTTLS (IMAP 143, SMTP 587).
+  starttls;
+
+  /// The usual security of a port: STARTTLS on 143, 25 and 587, implicit TLS otherwise.
+  static MailTls forPort(int port) =>
+      const {143, 25, 587}.contains(port) ? starttls : tls;
+
+  static MailTls _parse(Object? value, int port) => switch (value) {
+    'tls' => tls,
+    'starttls' => starttls,
+    _ => forPort(port),
+  };
+}
+
+/// Who runs the servers of a configuration, when they sign in their own way.
+enum SignInProvider {
+  /// A plain IMAP/SMTP password works.
+  password,
+
+  /// Google: an app password works; sign-in with Google is silica-linux/mail#3.
+  google,
+
+  /// Microsoft: only sign-in with Microsoft works, not supported yet (silica-linux/mail#3).
+  microsoft,
+}
+
 /// The settings found for an address (`DiscoverAccount`), completed by the user.
 @immutable
 class AccountConfig {
@@ -294,23 +325,30 @@ class AccountConfig {
     this.name = '',
     this.imapHost = '',
     this.imapPort = 993,
+    MailTls? imapTls,
     this.smtpHost = '',
     this.smtpPort = 465,
+    MailTls? smtpTls,
     this.username = '',
     this.password = '',
-  });
+  }) : imapTls = imapTls ?? MailTls.tls,
+       smtpTls = smtpTls ?? MailTls.tls;
 
   factory AccountConfig.fromJson(Object? json) {
     final m = _map(json);
     final imap = _map(m['imap']);
     final smtp = _map(m['smtp']);
+    final imapPort = imap['port'] == null ? 993 : _int(imap['port']);
+    final smtpPort = smtp['port'] == null ? 465 : _int(smtp['port']);
     return AccountConfig(
       address: _str(m['address']),
       name: _str(m['name']),
       imapHost: _str(imap['host']),
-      imapPort: imap['port'] == null ? 993 : _int(imap['port']),
+      imapPort: imapPort,
+      imapTls: MailTls._parse(imap['tls'], imapPort),
       smtpHost: _str(smtp['host']),
-      smtpPort: smtp['port'] == null ? 465 : _int(smtp['port']),
+      smtpPort: smtpPort,
+      smtpTls: MailTls._parse(smtp['tls'], smtpPort),
       username: _str(m['username']),
     );
   }
@@ -319,30 +357,60 @@ class AccountConfig {
   final String name;
   final String imapHost;
   final int imapPort;
+  final MailTls imapTls;
   final String smtpHost;
   final int smtpPort;
+  final MailTls smtpTls;
   final String username;
 
   /// Sent once to the engine, which keeps it in the Secret Service; never stored here.
   final String password;
 
-  AccountConfig copyWith({String? name, String? username, String? password}) =>
-      AccountConfig(
-        address: address,
-        name: name ?? this.name,
-        imapHost: imapHost,
-        imapPort: imapPort,
-        smtpHost: smtpHost,
-        smtpPort: smtpPort,
-        username: username ?? this.username,
-        password: password ?? this.password,
-      );
+  /// Who runs the servers, from their host names.
+  SignInProvider get provider {
+    final hosts = '${imapHost.toLowerCase()} ${smtpHost.toLowerCase()}';
+    if (hosts.contains('gmail.com') || hosts.contains('googlemail.com')) {
+      return SignInProvider.google;
+    }
+    if (hosts.contains('outlook.') ||
+        hosts.contains('office365.com') ||
+        hosts.contains('hotmail.') ||
+        hosts.contains('live.com')) {
+      return SignInProvider.microsoft;
+    }
+    return SignInProvider.password;
+  }
 
+  AccountConfig copyWith({
+    String? name,
+    String? imapHost,
+    int? imapPort,
+    MailTls? imapTls,
+    String? smtpHost,
+    int? smtpPort,
+    MailTls? smtpTls,
+    String? username,
+    String? password,
+  }) => AccountConfig(
+    address: address,
+    name: name ?? this.name,
+    imapHost: imapHost ?? this.imapHost,
+    imapPort: imapPort ?? this.imapPort,
+    imapTls: imapTls ?? this.imapTls,
+    smtpHost: smtpHost ?? this.smtpHost,
+    smtpPort: smtpPort ?? this.smtpPort,
+    smtpTls: smtpTls ?? this.smtpTls,
+    username: username ?? this.username,
+    password: password ?? this.password,
+  );
+
+  /// What the engine's `AddAccount` takes. The servers carry their security: the engine
+  /// requires it and rejected configurations without it.
   Map<String, Object?> toJson() => {
     'address': address,
     'name': name,
-    'imap': {'host': imapHost, 'port': imapPort},
-    'smtp': {'host': smtpHost, 'port': smtpPort},
+    'imap': {'host': imapHost, 'port': imapPort, 'tls': imapTls.name},
+    'smtp': {'host': smtpHost, 'port': smtpPort, 'tls': smtpTls.name},
     'username': username.isEmpty ? address : username,
     'password': password,
   };

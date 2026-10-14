@@ -51,7 +51,8 @@ class MailWindow extends StatefulWidget {
     required this.service,
     this.iconsDir,
     this.now,
-    this.engineMissing = false,
+    this.engineError,
+    this.sampleData = false,
     this.openUrl,
   });
 
@@ -61,8 +62,11 @@ class MailWindow extends StatefulWidget {
   /// The current time (tests); null: the clock.
   final DateTime Function()? now;
 
-  /// The engine is not on the bus: the window shows sample mail and says so.
-  final bool engineMissing;
+  /// Why the engine could not start, at launch: the window says so and offers to try again.
+  final String? engineError;
+
+  /// The service is the generated sample mail (`MAIL_SAMPLE_DATA=1`): the window says so.
+  final bool sampleData;
 
   /// Opens a link with the system (tests replace it); null: `xdg-open`.
   final ValueChanged<String>? openUrl;
@@ -105,7 +109,14 @@ class MailWindowState extends State<MailWindow> {
   ComposeRequest? _compose;
   bool _setup = false;
 
-  bool get _hasBanner => widget.engineMissing || _banner != null;
+  /// Why the engine can't be reached (null: it answers).
+  String? _engineError;
+
+  /// The first list of accounts has arrived (an empty one opens the setup by itself).
+  bool _accountsSeen = false;
+  bool _retrying = false;
+
+  bool get _hasBanner => widget.sampleData || _banner != null;
 
   /// Where the content starts: under the toolbar (and the banner, if there is one).
   double get _topInset =>
@@ -126,7 +137,35 @@ class MailWindowState extends State<MailWindow> {
     final state = WidgetsBinding.instance.lifecycleState;
     _active = state == null || state == AppLifecycleState.resumed;
     _events = _service.events.listen(_onEvent);
-    _loadAccounts();
+    _engineError = widget.engineError;
+    if (_engineError == null) {
+      _loadAccounts();
+    } else {
+      _loading = false;
+    }
+  }
+
+  /// Starts the engine again (D-Bus activation) and, if it answers, loads the accounts.
+  Future<void> retryEngine() async {
+    setState(() => _retrying = true);
+    try {
+      await _service.start();
+      await _service.listAccounts();
+      if (!mounted) return;
+      setState(() {
+        _engineError = null;
+        _retrying = false;
+        _loading = true;
+      });
+      await _loadAccounts();
+    } on MailError catch (e) {
+      if (mounted) {
+        setState(() {
+          _engineError = e.message;
+          _retrying = false;
+        });
+      }
+    }
   }
 
   @override
@@ -155,6 +194,11 @@ class MailWindowState extends State<MailWindow> {
     }
     if (!mounted) return;
     setState(() {
+      // First run: no account yet, so the setup opens by itself (as the reference does).
+      if (!_accountsSeen && accounts.isEmpty && !widget.sampleData) {
+        _setup = true;
+      }
+      _accountsSeen = true;
       _accounts = accounts;
       _mailboxes
         ..clear()
@@ -615,7 +659,7 @@ class MailWindowState extends State<MailWindow> {
       children: [
         Expanded(
           child: Text(
-            _banner ?? l10n.engineMissing,
+            _banner ?? l10n.sampleData,
             style: mailText(12, colors.secondary),
           ),
         ),
@@ -1537,6 +1581,52 @@ class MailWindowState extends State<MailWindow> {
   // MARK: reader
 
   Widget _reader(MailColors colors) {
+    if (_engineError case final error?) {
+      return Padding(
+        padding: EdgeInsets.only(top: _topInset),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.engineUnavailable,
+                  key: const ValueKey('engine unavailable'),
+                  textAlign: TextAlign.center,
+                  style: mailText(17, colors.text, weight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  l10n.engineUnavailableHint,
+                  textAlign: TextAlign.center,
+                  style: mailText(13, colors.secondary),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  error,
+                  key: const ValueKey('engine error'),
+                  textAlign: TextAlign.center,
+                  style: mailText(11, colors.tertiary),
+                ),
+                const SizedBox(height: 14),
+                GestureDetector(
+                  key: const ValueKey('engine retry'),
+                  onTap: _retrying ? null : retryEngine,
+                  child: Text(
+                    _retrying ? l10n.engineStarting : l10n.tryAgain,
+                    style: mailText(
+                      13,
+                      _retrying ? colors.tertiary : colors.link,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     if (_accounts.isEmpty && !_loading) {
       return Padding(
         padding: EdgeInsets.only(top: _topInset),

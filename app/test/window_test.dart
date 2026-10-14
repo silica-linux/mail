@@ -14,6 +14,8 @@ Future<FakeMailService> pump(
   FakeMailService? service,
   Locale locale = const Locale('en'),
   List<String>? opened,
+  String? engineError,
+  bool sampleData = false,
 }) async {
   tester.view.physicalSize = const Size(1280, 800);
   tester.view.devicePixelRatio = 1;
@@ -24,7 +26,13 @@ Future<FakeMailService> pump(
       locale: locale,
       child: Directionality(
         textDirection: TextDirection.ltr,
-        child: MailWindow(service: fake, now: () => now, openUrl: opened?.add),
+        child: MailWindow(
+          service: fake,
+          now: () => now,
+          openUrl: opened?.add,
+          engineError: engineError,
+          sampleData: sampleData,
+        ),
       ),
     ),
   );
@@ -197,9 +205,16 @@ void main() {
     expect(find.byKey(const ValueKey('reader')), findsOneWidget);
   });
 
-  testWidgets('without accounts the window offers to add one', (tester) async {
+  testWidgets('first run: without accounts the setup opens by itself', (
+    tester,
+  ) async {
     final fake = FakeMailService(now: now, sample: false);
     await pump(tester, service: fake);
+    expect(find.byKey(const ValueKey('account setup')), findsOneWidget);
+    // Cancel leaves the empty window, which offers the setup again.
+    await tester.tap(find.byKey(const ValueKey('setup cancel')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('account setup')), findsNothing);
     expect(find.byKey(const ValueKey('no accounts')), findsOneWidget);
     await tester.tap(find.text('Add Account').last);
     await tester.pumpAndSettle();
@@ -225,6 +240,164 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('account setup')), findsNothing);
     expect((await fake.listAccounts()).single.address, 'robin@example.com');
+    // The engine needs the security of each server.
+    expect(fake.added.single.toJson()['imap'], {
+      'host': 'imap.example.com',
+      'port': 993,
+      'tls': 'tls',
+    });
+  });
+
+  testWidgets('settings not found: the servers are entered by hand', (
+    tester,
+  ) async {
+    final fake = FakeMailService(now: now, sample: false)
+      ..undiscoverable.add('kim@small.example');
+    await pump(tester, service: fake);
+    await tester.enterText(
+      find.byKey(const ValueKey('setup address')),
+      'kim@small.example',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('setup continue')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('setup error')), findsOneWidget);
+    // The usual names are proposed.
+    expect(
+      tester
+          .widget<EditableText>(find.byKey(const ValueKey('setup imap host')))
+          .controller
+          .text,
+      'imap.small.example',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('setup imap host')),
+      'mx.small.example',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('setup smtp port')),
+      '587',
+    );
+    await tester.tap(find.byKey(const ValueKey('setup continue')));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('setup imap'))).data,
+      'Incoming server: mx.small.example:993',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('setup password')),
+      'secret',
+    );
+    await tester.tap(find.byKey(const ValueKey('setup continue')));
+    await tester.pumpAndSettle();
+    final config = fake.added.single;
+    expect(config.imapHost, 'mx.small.example');
+    expect(config.smtpTls, MailTls.starttls);
+    expect(config.username, 'kim@small.example');
+  });
+
+  testWidgets('a bad port keeps the manual form', (tester) async {
+    final fake = FakeMailService(now: now, sample: false)
+      ..undiscoverable.add('kim@small.example');
+    await pump(tester, service: fake);
+    await tester.enterText(
+      find.byKey(const ValueKey('setup address')),
+      'kim@small.example',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('setup continue')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('setup imap port')), 'x');
+    await tester.tap(find.byKey(const ValueKey('setup continue')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('setup imap host')), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('setup error'))).data,
+      'Enter both servers and their ports (1–65535).',
+    );
+  });
+
+  testWidgets('Microsoft servers are said not supported, without a password', (
+    tester,
+  ) async {
+    final fake = FakeMailService(now: now, sample: false);
+    await pump(tester, service: fake);
+    await tester.enterText(
+      find.byKey(const ValueKey('setup address')),
+      'sam@outlook.com',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('setup continue')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('setup provider note')), findsOneWidget);
+    expect(find.byKey(const ValueKey('setup password')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('setup continue')));
+    await tester.pumpAndSettle();
+    expect(fake.added, isEmpty);
+  });
+
+  testWidgets('Google servers ask for an app password', (tester) async {
+    final fake = FakeMailService(now: now, sample: false);
+    await pump(tester, service: fake);
+    await tester.enterText(
+      find.byKey(const ValueKey('setup address')),
+      'sam@gmail.com',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('setup continue')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('setup provider note')))
+          .data,
+      contains('app password'),
+    );
+    expect(find.byKey(const ValueKey('setup password')), findsOneWidget);
+  });
+
+  testWidgets('engine unavailable: the window says so and tries again', (
+    tester,
+  ) async {
+    final fake = FakeMailService(
+      now: now,
+      unavailable: 'org.freedesktop.DBus.Error.ServiceUnknown',
+    );
+    await pump(
+      tester,
+      service: fake,
+      engineError: 'org.freedesktop.DBus.Error.ServiceUnknown',
+    );
+    expect(find.byKey(const ValueKey('engine unavailable')), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('engine error'))).data,
+      'org.freedesktop.DBus.Error.ServiceUnknown',
+    );
+    // No sample mail and no setup in its place.
+    expect(find.byKey(const ValueKey('row m1')), findsNothing);
+    expect(find.byKey(const ValueKey('account setup')), findsNothing);
+    // Still down: the error stays.
+    await tester.tap(find.byKey(const ValueKey('engine retry')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('engine unavailable')), findsOneWidget);
+    // Up again: the mail appears.
+    fake.unavailable = null;
+    await tester.tap(find.byKey(const ValueKey('engine retry')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('engine unavailable')), findsNothing);
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
+      'Inbox',
+    );
+  });
+
+  testWidgets('sample data is labelled as such', (tester) async {
+    await pump(tester, sampleData: true);
+    expect(
+      find.text(
+        'Sample mail for development (MAIL_SAMPLE_DATA): no real account.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Italian: mailboxes and texts in Italian', (tester) async {

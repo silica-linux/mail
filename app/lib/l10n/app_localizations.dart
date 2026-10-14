@@ -428,11 +428,77 @@ abstract class AppLocalizations {
   /// **'The account could not be added: {error}'**
   String setupFailed(String error);
 
-  /// Banner when the engine service is not on the bus.
+  /// Banner when the app runs on generated sample mail.
   ///
   /// In en, this message translates to:
-  /// **'The mail engine is not running: showing sample mail.'**
-  String get engineMissing;
+  /// **'Sample mail for development (MAIL_SAMPLE_DATA): no real account.'**
+  String get sampleData;
+
+  /// Title when the mail engine (a background service) can't be started.
+  ///
+  /// In en, this message translates to:
+  /// **'Mail can\'t reach its mail service'**
+  String get engineUnavailable;
+
+  /// Explanation under engineUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The service that downloads and sends mail didn\'t start. Check that Mail is installed completely, then try again.'**
+  String get engineUnavailableHint;
+
+  /// Button that starts the mail engine again.
+  ///
+  /// In en, this message translates to:
+  /// **'Try Again'**
+  String get tryAgain;
+
+  /// Shown while the engine is being started again.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting…'**
+  String get engineStarting;
+
+  /// Setup: discovery failed, the manual form follows.
+  ///
+  /// In en, this message translates to:
+  /// **'The settings of this address were not found ({error}). Enter the servers below.'**
+  String settingsNotFound(String error);
+
+  /// Setup: the manual server form is incomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter both servers and their ports (1–65535).'**
+  String get serverSettingsInvalid;
+
+  /// Setup label of a server port.
+  ///
+  /// In en, this message translates to:
+  /// **'Port'**
+  String get port;
+
+  /// Setup label of the login name of the servers.
+  ///
+  /// In en, this message translates to:
+  /// **'User name'**
+  String get userName;
+
+  /// Setup link back to the manual server form.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Server Settings…'**
+  String get editServerSettings;
+
+  /// Setup note for Google servers (OAuth is not supported yet).
+  ///
+  /// In en, this message translates to:
+  /// **'Signing in with a Google account page isn\'t supported yet. Use an app password, created in your Google account\'s security settings (2-step verification is required).'**
+  String get googleAppPassword;
+
+  /// Setup note for Microsoft servers: they can't be added yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Microsoft accounts sign in only through Microsoft\'s page, which Mail doesn\'t support yet.'**
+  String get microsoftNotSupported;
 
   /// Banner after a sync error.
   ///

@@ -15,14 +15,15 @@ Future<void> main() async {
   // The toolbar is unified with the window: Ossido draws only the window buttons.
   SilicaWindow.setFullSizeContent(toolbarHeight).ignore();
   setMinimumSize().ignore();
-  final (service, missing) = await connect();
+  final connection = await connect(Platform.environment);
   runApp(
     AppLocalizationsScope(
       child: Directionality(
         textDirection: TextDirection.ltr,
         child: MailWindow(
-          service: service,
-          engineMissing: missing,
+          service: connection.service,
+          engineError: connection.error,
+          sampleData: connection.sample,
           iconsDir: Platform.environment['SILICA_ICONS_DIR'],
         ),
       ),
@@ -34,14 +35,29 @@ Future<void> main() async {
 Future<void> setMinimumSize() =>
     SilicaWindow.setSizeLimits(min: MailMetrics.minimumWindow);
 
-/// The engine on the session bus, or sample mail in memory when it does not answer (not
-/// installed, outside Silica). The second value says which.
-Future<(MailService, bool)> connect() async {
-  final engine = DBusMailService();
+/// How the app reaches its mail.
+typedef Connection = ({MailService service, String? error, bool sample});
+
+/// The engine on the session bus, started through D-Bus activation. When it can't start, the
+/// window says why and offers to try again: sample mail only with `MAIL_SAMPLE_DATA=1`
+/// (development), never instead of the user's mail.
+Future<Connection> connect(
+  Map<String, String> env, {
+  MailService? engine,
+}) async {
+  if (env['MAIL_SAMPLE_DATA'] == '1') {
+    return (
+      service: FakeMailService(now: DateTime.now()) as MailService,
+      error: null,
+      sample: true,
+    );
+  }
+  final service = engine ?? DBusMailService();
   try {
-    await engine.listAccounts();
-    return (engine as MailService, false);
-  } on MailError {
-    return (FakeMailService(now: DateTime.now()) as MailService, true);
+    await service.start();
+    await service.listAccounts();
+    return (service: service, error: null, sample: false);
+  } on MailError catch (e) {
+    return (service: service, error: e.message, sample: false);
   }
 }

@@ -12,7 +12,7 @@
 // MessagesChanged(mailbox, added, removed, changed), SyncState(account, state, error).
 //
 // The app talks to it only through [MailService]: [DBusMailService] in Silica, [FakeMailService]
-// in tests and when the engine is missing.
+// in tests and, for development only, with `MAIL_SAMPLE_DATA=1`.
 
 import 'dart:async';
 import 'dart:convert';
@@ -94,6 +94,10 @@ class MailError implements Exception {
 
 abstract class MailService {
   Stream<MailEvent> get events;
+
+  /// Makes sure the engine runs (D-Bus activation of `silica-mail-engine`); a [MailError]
+  /// says why it can't.
+  Future<void> start();
   Future<List<Account>> listAccounts();
   Future<AccountConfig> discoverAccount(String address);
   Future<String> addAccount(AccountConfig config);
@@ -187,6 +191,26 @@ class DBusMailService implements MailService {
     };
   }
 
+  /// Asks the bus to start the engine from its service file
+  /// (`dev.frascella.Mail.service`, installed with the engine). Already running is fine.
+  @override
+  Future<void> start() async {
+    try {
+      await _dbus.call(
+        destination: 'org.freedesktop.DBus',
+        path: '/org/freedesktop/DBus',
+        interface: 'org.freedesktop.DBus',
+        method: 'StartServiceByName',
+        signature: 'su',
+        args: const [name, 0],
+      );
+    } on PlatformException catch (e) {
+      throw MailError(e.message ?? e.code);
+    } on MissingPluginException {
+      throw const MailError('no D-Bus channel (outside Silica)');
+    }
+  }
+
   @override
   Future<List<Account>> listAccounts() async => [
     for (final a in _list(await _call('ListAccounts'))) Account.fromJson(a),
@@ -259,13 +283,19 @@ class DBusMailService implements MailService {
   Future<void> sync(String account) => _call('Sync', [account]);
 }
 
-/// An engine in memory with generated mail: tests, and the app outside Silica or before the
-/// engine is installed. Nothing leaves the process.
+/// An engine in memory with generated mail: tests, and the sample data of `MAIL_SAMPLE_DATA=1`
+/// for development. Nothing leaves the process.
 class FakeMailService implements MailService {
-  FakeMailService({DateTime? now, bool sample = true})
+  FakeMailService({DateTime? now, bool sample = true, this.unavailable})
     : _now = now ?? DateTime(2026, 10, 14, 15, 30) {
     if (sample) _populate();
   }
+
+  /// While set, the engine "can't start" with this error (tests of the unavailable state).
+  String? unavailable;
+
+  /// Addresses whose settings can't be found (tests of the manual setup).
+  final Set<String> undiscoverable = {};
 
   final DateTime _now;
   final List<Account> _accounts = [];
@@ -381,13 +411,29 @@ class FakeMailService implements MailService {
   );
 
   @override
-  Future<List<Account>> listAccounts() async => List.of(_accounts);
+  Future<void> start() async {
+    if (unavailable case final error?) throw MailError(error);
+  }
+
+  @override
+  Future<List<Account>> listAccounts() async {
+    if (unavailable case final error?) throw MailError(error);
+    return List.of(_accounts);
+  }
+
+  /// Every account added, with the configuration it was added with (tests).
+  final List<AccountConfig> added = [];
 
   @override
   Future<AccountConfig> discoverAccount(String address) async {
     final at = address.lastIndexOf('@');
     if (at <= 0 || at == address.length - 1) {
       throw const MailError('not an address');
+    }
+    if (undiscoverable.contains(address)) {
+      throw MailError(
+        'not found: mail servers for ${address.substring(at + 1)}',
+      );
     }
     final domain = address.substring(at + 1);
     return AccountConfig(
@@ -401,6 +447,7 @@ class FakeMailService implements MailService {
   @override
   Future<String> addAccount(AccountConfig config) async {
     if (config.password.isEmpty) throw const MailError('password required');
+    added.add(config);
     final id = 'acc-${_accounts.length + 1}';
     _accounts.add(Account(id: id, name: config.name, address: config.address));
     _mailboxes.add(
