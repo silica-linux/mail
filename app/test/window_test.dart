@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:silica_ui/silica_ui.dart';
 import 'package:silica_mail/src/l10n.dart';
 import 'package:silica_mail/src/model.dart';
 import 'package:silica_mail/src/service.dart';
@@ -353,6 +354,51 @@ void main() {
     await tester.pump();
     expect(selection(), const Color(0xFF026ED1));
     expect(MailFlagCheck.ok, isTrue);
+  });
+
+  testWidgets('the list scrolls under the glass toolbar; its line follows it', (
+    tester,
+  ) async {
+    await pump(tester);
+    tester.view.physicalSize = const Size(1280, 500);
+    await tester.pumpAndSettle();
+    expect(find.byType(ScrollUnderToolbar), findsOneWidget);
+    expect(find.byKey(const ValueKey('list line')), findsNothing);
+    expect(find.byKey(const ValueKey('reader line')), findsNothing);
+    // The first row starts below the 52 pt band...
+    expect(
+      tester.getRect(find.byKey(const ValueKey('row m0'))).top,
+      greaterThanOrEqualTo(toolbarHeight),
+    );
+    // ...and goes under it once the list scrolls; only the list's column gets the line.
+    await tester.drag(
+      find.byKey(const ValueKey('message list')),
+      const Offset(0, -60),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.byKey(const ValueKey('row m0'))).top,
+      lessThan(toolbarHeight),
+    );
+    expect(find.byKey(const ValueKey('list line')), findsOneWidget);
+    expect(find.byKey(const ValueKey('reader line')), findsNothing);
+    expect(
+      tester.getRect(find.byKey(const ValueKey('list line'))).top,
+      toolbarHeight,
+    );
+  });
+
+  testWidgets('an inactive window keeps the lines under the band', (
+    tester,
+  ) async {
+    await pump(tester);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('list line')), findsOneWidget);
+    expect(find.byKey(const ValueKey('reader line')), findsOneWidget);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('list line')), findsNothing);
   });
 }
 

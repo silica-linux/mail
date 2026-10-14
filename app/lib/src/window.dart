@@ -96,6 +96,10 @@ class MailWindowState extends State<MailWindow> {
   final Set<String> _expanded = {};
   bool _sidebarShown = true;
   bool _active = true;
+
+  /// The list and the reader have content scrolled under the band.
+  bool _listScrolled = false;
+  bool _readerScrolled = false;
   bool _loading = true;
   String? _banner;
   ComposeRequest? _compose;
@@ -471,48 +475,9 @@ class MailWindowState extends State<MailWindow> {
                       child: _sidebar(colors),
                     ),
                   Expanded(
-                    // The toolbar floats above the content, which starts under it (top
-                    // inset) so it can later scroll under a glass toolbar.
-                    // TODO(silica-linux/silica-ui#2): use the shared glass toolbar with the
-                    // measured veil (mustache-spec R1.9) and let the lists scroll under it.
                     child: Stack(
                       children: [
-                        Positioned.fill(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              SizedBox(
-                                width: MailMetrics.listWidth,
-                                child: _list(colors),
-                              ),
-                              Container(width: 1, color: colors.separator),
-                              Expanded(
-                                child: ColoredBox(
-                                  color: colors.reader,
-                                  child: _reader(colors),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_hasBanner)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            top: toolbarHeight,
-                            height: MailMetrics.bannerHeight,
-                            child: _bannerBar(colors),
-                          ),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          top: 0,
-                          height: toolbarHeight,
-                          child: ColoredBox(
-                            color: colors.content,
-                            child: _toolbar(colors),
-                          ),
-                        ),
+                        Positioned.fill(child: _content(colors)),
                         if (_suggesting && _query.text.trim().isNotEmpty)
                           Positioned(
                             top: toolbarHeight - 4,
@@ -551,6 +516,93 @@ class MailWindowState extends State<MailWindow> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// The list and the reader, scrolling under the glass toolbar (mustache-spec R1.9: the
+  /// measured veil over the band, the banner inside it). The list and the reader are two
+  /// scrollables side by side, so each column draws its own 1 pt line under the band once it
+  /// has scrolled (always in an inactive window, as for the toolbar line).
+  // PROVISIONAL: the per-column line is not measured in ML-01 (the reference has one split
+  // view scroll edge per pane, which this follows).
+  Widget _content(MailColors colors) {
+    final veil = ToolbarVeil.of(context);
+    Widget line(bool scrolled, String key) => scrolled || !_active
+        ? ColoredBox(key: ValueKey(key), color: veil.line)
+        : const SizedBox.shrink();
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ScrollUnderToolbar(
+            active: _active,
+            veil: veil,
+            showLine: false,
+            toolbar: _toolbar(colors),
+            header: _hasBanner ? _bannerBar(colors) : null,
+            headerHeight: _hasBanner ? MailMetrics.bannerHeight : 0,
+            body: (context, padding) => Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: MailMetrics.listWidth,
+                  child: _scrollEdge(
+                    (v) => _listScrolled = v,
+                    () => _listScrolled,
+                    _list(colors),
+                  ),
+                ),
+                Container(width: 1, color: colors.separator),
+                Expanded(
+                  child: ColoredBox(
+                    color: colors.reader,
+                    child: _scrollEdge(
+                      (v) => _readerScrolled = v,
+                      () => _readerScrolled,
+                      _reader(colors),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          top: _topInset,
+          width: MailMetrics.listWidth,
+          height: 1,
+          child: line(_listScrolled, 'list line'),
+        ),
+        Positioned(
+          left: MailMetrics.listWidth + 1,
+          right: 0,
+          top: _topInset,
+          height: 1,
+          child: line(_readerScrolled, 'reader line'),
+        ),
+      ],
+    );
+  }
+
+  /// Follows whether the column's vertical scrollable has content above its top.
+  Widget _scrollEdge(
+    void Function(bool) set,
+    bool Function() get,
+    Widget child,
+  ) {
+    bool update(ScrollMetrics m, int depth) {
+      if (depth != 0 || m.axis != Axis.vertical) return false;
+      final scrolled = m.extentBefore > 0;
+      if (scrolled != get()) setState(() => set(scrolled));
+      return false;
+    }
+
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: (n) => update(n.metrics, n.depth),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) => update(n.metrics, n.depth),
+        child: child,
       ),
     );
   }
