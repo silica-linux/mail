@@ -36,13 +36,18 @@ class _AccountSetupState extends State<AccountSetup> {
   @override
   void initState() {
     super.initState();
+    // Continue stays dimmed until there is an address.
+    _address.addListener(_changed);
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _nameFocus.requestFocus(),
     );
   }
 
+  void _changed() => setState(() {});
+
   @override
   void dispose() {
+    _address.removeListener(_changed);
     for (final c in [_address, _name, _password]) {
       c.dispose();
     }
@@ -55,6 +60,7 @@ class _AccountSetupState extends State<AccountSetup> {
   Future<void> _continue() async {
     switch (_step) {
       case _Step.address:
+        if (_address.text.trim().isEmpty) return;
         setState(() {
           _step = _Step.discovering;
           _error = null;
@@ -110,6 +116,7 @@ class _AccountSetupState extends State<AccountSetup> {
     FocusNode focus,
     String key, {
     bool obscure = false,
+    String? placeholder,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
     child: Column(
@@ -117,25 +124,39 @@ class _AccountSetupState extends State<AccountSetup> {
       children: [
         Text(label, style: mailText(12, colors.secondary)),
         const SizedBox(height: 4),
+        // ML-01: the address sits in a 488 × 40 box (radius PROVISIONAL).
         Container(
-          height: 28,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          width: MailMetrics.accountFieldWidth,
+          height: MailMetrics.accountField,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
             color: colors.field,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: colors.separator),
           ),
-          child: EditableText(
-            key: ValueKey(key),
-            controller: controller,
-            focusNode: focus,
-            obscureText: obscure,
-            style: mailText(13, colors.text),
-            cursorColor: colors.text,
-            backgroundCursorColor: colors.text,
-            maxLines: 1,
-            onSubmitted: (_) => _continue(),
+          child: Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              if (placeholder != null && controller.text.isEmpty)
+                IgnorePointer(
+                  child: Text(
+                    placeholder,
+                    style: mailText(13, colors.tertiary),
+                  ),
+                ),
+              EditableText(
+                key: ValueKey(key),
+                controller: controller,
+                focusNode: focus,
+                obscureText: obscure,
+                style: mailText(13, colors.text),
+                cursorColor: colors.text,
+                backgroundCursorColor: colors.text,
+                maxLines: 1,
+                onSubmitted: (_) => _continue(),
+              ),
+            ],
           ),
         ),
       ],
@@ -146,7 +167,10 @@ class _AccountSetupState extends State<AccountSetup> {
   Widget build(BuildContext context) {
     final colors = MailColors.of(context);
     final config = _config;
-    final busy = _step == _Step.discovering || _step == _Step.adding;
+    final busy =
+        _step == _Step.discovering ||
+        _step == _Step.adding ||
+        (_step == _Step.address && _address.text.trim().isEmpty);
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
@@ -154,9 +178,13 @@ class _AccountSetupState extends State<AccountSetup> {
       child: ColoredBox(
         color: const Color(0x33000000),
         child: Center(
+          // ML-01: the sheet is 528 × 416 (padding PROVISIONAL: 20 around the 488 field).
           child: Container(
-            width: 420,
-            padding: const EdgeInsets.all(22),
+            width: MailMetrics.accountSheet.width,
+            constraints: BoxConstraints(
+              minHeight: MailMetrics.accountSheet.height,
+            ),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: colors.content,
               borderRadius: BorderRadius.circular(12),
@@ -192,6 +220,7 @@ class _AccountSetupState extends State<AccountSetup> {
                     _address,
                     _addressFocus,
                     'setup address',
+                    placeholder: l10n.addressPlaceholder,
                   ),
                 ],
                 if (_step == _Step.discovering)

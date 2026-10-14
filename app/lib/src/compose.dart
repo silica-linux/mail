@@ -3,6 +3,7 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:silica_ui/silica_ui.dart';
 
 import 'l10n.dart';
 import 'model.dart';
@@ -143,13 +144,18 @@ class _ComposeSheetState extends State<ComposeSheet> {
   @override
   void initState() {
     super.initState();
+    // The send button is dimmed until there is a recipient.
+    _to.addListener(_changed);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       (widget.request.to.isEmpty ? _toFocus : _bodyFocus).requestFocus();
     });
   }
 
+  void _changed() => setState(() {});
+
   @override
   void dispose() {
+    _to.removeListener(_changed);
     for (final c in [_to, _cc, _subject, _body]) {
       c.dispose();
     }
@@ -198,7 +204,8 @@ class _ComposeSheetState extends State<ComposeSheet> {
     FocusNode focus,
     String key,
   ) => Container(
-    height: 34,
+    // ML-01: one field per 40 pt row, 1 pt separators.
+    height: MailMetrics.composerField,
     padding: const EdgeInsets.symmetric(horizontal: 16),
     decoration: BoxDecoration(
       border: Border(bottom: BorderSide(color: colors.separator)),
@@ -224,6 +231,49 @@ class _ComposeSheetState extends State<ComposeSheet> {
     ),
   );
 
+  /// Send (ML-01: a 40 × 52 button drawn as a blue circle with a white up arrow, dimmed
+  /// without a recipient; circle size PROVISIONAL).
+  Widget _sendButton(MailColors colors) {
+    final ready = !_sending && parseAddresses(_to.text).isNotEmpty;
+    return Semantics(
+      button: true,
+      enabled: ready,
+      label: l10n.send,
+      child: GestureDetector(
+        key: const ValueKey('compose send'),
+        behavior: HitTestBehavior.opaque,
+        onTap: _sending ? null : _send,
+        child: SizedBox(
+          width: 40,
+          height: toolbarHeight,
+          child: Center(
+            child: Opacity(
+              opacity: ready ? 1 : 0.4,
+              child: Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.send,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '↑',
+                  style: mailText(
+                    16,
+                    colors.selectionText,
+                    weight: FontWeight.w600,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = MailColors.of(context);
@@ -239,9 +289,11 @@ class _ComposeSheetState extends State<ComposeSheet> {
       child: ColoredBox(
         color: const Color(0x33000000),
         child: Center(
+          // ML-01: the composer window is 836 × 779; here it is a panel over the viewer,
+          // never larger than the window.
           child: Container(
-            width: 640,
-            height: 500,
+            key: const ValueKey('composer panel'),
+            constraints: BoxConstraints.loose(MailMetrics.composer),
             decoration: BoxDecoration(
               color: colors.content,
               borderRadius: BorderRadius.circular(12),
@@ -258,7 +310,7 @@ class _ComposeSheetState extends State<ComposeSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(
-                  height: 44,
+                  height: toolbarHeight,
                   child: Row(
                     children: [
                       const SizedBox(width: 16),
@@ -287,33 +339,14 @@ class _ComposeSheetState extends State<ComposeSheet> {
                           ),
                         ),
                       ),
-                      GestureDetector(
-                        key: const ValueKey('compose send'),
-                        onTap: _sending ? null : _send,
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 12),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _sending
-                                ? colors.tertiary
-                                : colors.selection,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            l10n.send,
-                            style: mailText(
-                              13,
-                              colors.selectionText,
-                              weight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
+                      _sendButton(colors),
+                      const SizedBox(width: 8),
                     ],
                   ),
+                ),
+                // ML-01: the first field row starts at y 61.
+                const SizedBox(
+                  height: MailMetrics.composerFieldsY - toolbarHeight,
                 ),
                 Container(height: 1, color: colors.separator),
                 _field(colors, l10n.to, _to, _toFocus, 'compose to'),

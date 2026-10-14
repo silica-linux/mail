@@ -148,6 +148,31 @@ void main() {
     expect(fake.sent.single.inReplyTo, isNotNull);
   });
 
+  testWidgets('the composer is 836 × 779 and Send waits for a recipient', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('compose')));
+    await tester.pumpAndSettle();
+    final panel = find.byKey(const ValueKey('composer panel'));
+    expect(tester.getSize(panel), const Size(836, 779));
+    double sendOpacity() => tester
+        .widget<Opacity>(
+          find.descendant(
+            of: find.byKey(const ValueKey('compose send')),
+            matching: find.byType(Opacity),
+          ),
+        )
+        .opacity;
+    expect(sendOpacity(), 0.4);
+    await tester.enterText(
+      find.byKey(const ValueKey('compose to')),
+      'sam@example.net',
+    );
+    await tester.pump();
+    expect(sendOpacity(), 1);
+  });
+
   testWidgets('a new message without recipients is not sent', (tester) async {
     final fake = await pump(tester);
     await tester.tap(find.byKey(const ValueKey('compose')));
@@ -183,6 +208,8 @@ void main() {
       find.byKey(const ValueKey('setup address')),
       'robin@example.com',
     );
+    // The address enables Continue on the next frame.
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('setup continue')));
     await tester.pumpAndSettle();
     expect(
