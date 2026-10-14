@@ -231,8 +231,8 @@ class _ComposeSheetState extends State<ComposeSheet> {
     ),
   );
 
-  /// Send (ML-01: a 40 × 52 button drawn as a blue circle with a white up arrow, dimmed
-  /// without a recipient; circle size PROVISIONAL).
+  /// Send (ML-01: a 40 × 52 button: white upward arrow on a blue disc, faded
+  /// until there is a recipient; circle size PROVISIONAL).
   Widget _sendButton(MailColors colors) {
     final ready = !_sending && parseAddresses(_to.text).isNotEmpty;
     return Semantics(
