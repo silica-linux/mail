@@ -2,9 +2,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:silica_ui/silica_ui.dart';
+import 'package:silica_mail/src/compose.dart';
 import 'package:silica_mail/src/l10n.dart';
 import 'package:silica_mail/src/model.dart';
 import 'package:silica_mail/src/service.dart';
+import 'package:silica_mail/src/style.dart';
 import 'package:silica_mail/src/window.dart';
 
 final DateTime now = DateTime(2026, 10, 14, 15, 30);
@@ -72,11 +74,19 @@ void main() {
     tester,
   ) async {
     final fake = await pump(tester);
-    await tapRow(tester, 'm0');
+    await tester.tap(find.byKey(const ValueKey('row m0')));
+    await tester.pump();
+    await tester.pump();
     expect(find.byKey(const ValueKey('reader')), findsOneWidget);
     expect(find.byKey(const ValueKey('subject m0')), findsOneWidget);
     // m0 and m10 share thread t0: both in the reader.
     expect(find.byKey(const ValueKey('subject m10')), findsOneWidget);
+    // ML-01b: still unread right after the selection, read ~120 ms later.
+    final before = (await fake.listMessages(
+      const ListQuery('inbox'),
+    )).firstWhere((r) => r.id == 'm0');
+    expect(before.unread, isTrue);
+    await tester.pump(const Duration(milliseconds: 130));
     final row = (await fake.listMessages(
       const ListQuery('inbox'),
     )).firstWhere((r) => r.id == 'm0');
@@ -198,11 +208,19 @@ void main() {
     final fake = await pump(tester);
     await tapRow(tester, 'm3');
     await tester.tap(find.byKey(const ValueKey('delete')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump();
     final trash = await fake.listMessages(const ListQuery('trash'));
     expect(trash.map((r) => r.id), contains('m3'));
+    // ML-01b: no animation; the next message is selected at once, the reader follows
+    // ~120 ms later.
     expect(find.byKey(const ValueKey('row m3')), findsNothing);
+    expect(find.byKey(const ValueKey('selection m4')), findsOneWidget);
+    expect(find.byKey(const ValueKey('subject m4')), findsNothing);
+    await tester.pump(const Duration(milliseconds: 130));
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('reader')), findsOneWidget);
+    expect(find.byKey(const ValueKey('subject m4')), findsOneWidget);
   });
 
   testWidgets('first run: without accounts the setup opens by itself', (
@@ -424,9 +442,13 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('message list'))).width,
       325,
     );
+    // ML-01b: 8 pt, centred 12.5 pt before the sender, on the sender's line.
+    final dot = find.byKey(const ValueKey('unread dot m0'));
+    expect(tester.getSize(dot), const Size(8, 8));
+    final row = tester.getTopLeft(find.byKey(const ValueKey('row m0')));
     expect(
-      tester.getSize(find.byKey(const ValueKey('unread dot m0'))),
-      const Size(10, 10),
+      tester.getCenter(dot).dx,
+      closeTo(row.dx + MailMetrics.cellX + MailMetrics.senderX - 12.5, 0.01),
     );
   });
 
@@ -573,6 +595,123 @@ void main() {
     await tester.pump();
     expect(find.byKey(const ValueKey('list line')), findsNothing);
   });
+
+  testWidgets('the composer opens at 98.8 % and settles at 100 % (ML-01b)', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('compose')));
+    await tester.pump();
+    final panel = find.byKey(const ValueKey('composer panel'));
+    double width() =>
+        tester.getBottomRight(panel).dx - tester.getTopLeft(panel).dx;
+    expect(width(), closeTo(836 * 0.988, 0.5));
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(width(), greaterThan(836));
+    expect(width(), lessThanOrEqualTo(838.01));
+    await tester.pumpAndSettle();
+    expect(width(), closeTo(836, 0.01));
+    expect(composerOpenScale(0), 0.988);
+    expect(composerOpenScale(1), 1);
+  });
+
+  testWidgets(
+    'sending lifts the composer straight up at 3.3 pt/ms after 100 ms',
+    (tester) async {
+      final fake = await pump(tester);
+      await tester.tap(find.byKey(const ValueKey('compose')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('compose to')),
+        'sam@example.net',
+      );
+      await tester.pump();
+      final panel = find.byKey(const ValueKey('composer panel'));
+      final top = tester.getTopLeft(panel).dy;
+      final width = tester.getSize(panel).width;
+      await tester.tap(find.byKey(const ValueKey('compose send')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 90));
+      expect(tester.getTopLeft(panel).dy, closeTo(top, 0.01));
+      await tester.pump(const Duration(milliseconds: 60));
+      // ~50 ms into the lift: ~165 pt higher, same size (no scale, no fade).
+      expect(tester.getTopLeft(panel).dy, lessThan(top - 100));
+      expect(
+        tester.getBottomRight(panel).dx - tester.getTopLeft(panel).dx,
+        closeTo(width, 0.01),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('composer')), findsNothing);
+      expect(fake.sent.single.to.single.address, 'sam@example.net');
+    },
+  );
+
+  testWidgets('Escape closes the composer with a short fade', (tester) async {
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('compose')));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(find.byKey(const ValueKey('composer')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('composer')), findsNothing);
+  });
+
+  testWidgets(
+    'dark appearance: HTML mail keeps a white page, plain text does not',
+    (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await pump(tester);
+      await tapRow(tester, 'm1');
+      expect(find.byKey(const ValueKey('html page')), findsWidgets);
+      await tapRow(tester, 'm0');
+      expect(find.byKey(const ValueKey('html page')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'closing the window keeps Mail; a reopen shows the same mailbox',
+    (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      addTearDown(SilicaApp.reset);
+      final fake = FakeMailService(now: now);
+      final lastMailbox = ValueNotifier<String?>(null);
+      await tester.pumpWidget(
+        AppLocalizationsScope(
+          locale: const Locale('en'),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: SilicaAppWindow(
+              builder: (context) => MailWindow(
+                service: fake,
+                now: () => now,
+                lastMailbox: lastMailbox,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('mailbox sent')));
+      await tester.pumpAndSettle();
+      expect(lastMailbox.value, 'sent');
+      await SilicaApp.handle('lastWindowClosed', null);
+      await tester.pump();
+      expect(find.byType(MailWindow), findsNothing);
+      await SilicaApp.handle('reopen', {'windowless': true});
+      await tester.pumpAndSettle();
+      expect(find.byType(MailWindow), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
+        'Sent',
+      );
+    },
+  );
 }
 
 /// Keeps the model import used (flags are checked through the fake above).

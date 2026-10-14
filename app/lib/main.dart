@@ -16,15 +16,21 @@ Future<void> main() async {
   SilicaWindow.setFullSizeContent(toolbarHeight).ignore();
   setMinimumSize().ignore();
   final connection = await connect(Platform.environment);
+  // Mail keeps running when its window closes; a reopen shows the main window again on the
+  // same mailbox (APP-LC). The engine connection and the mailbox outlive the window.
+  final lastMailbox = ValueNotifier<String?>(null);
   runApp(
     AppLocalizationsScope(
       child: Directionality(
         textDirection: TextDirection.ltr,
-        child: MailWindow(
-          service: connection.service,
-          engineError: connection.error,
-          sampleData: connection.sample,
-          iconsDir: Platform.environment['SILICA_ICONS_DIR'],
+        child: SilicaAppWindow(
+          builder: (context) => MailWindow(
+            service: connection.service,
+            engineError: connection.error,
+            sampleData: connection.sample,
+            iconsDir: Platform.environment['SILICA_ICONS_DIR'],
+            lastMailbox: lastMailbox,
+          ),
         ),
       ),
     ),

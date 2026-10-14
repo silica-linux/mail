@@ -49,11 +49,15 @@ abstract final class MailMetrics {
   static const double summaryY = 43;
   static const double summaryLine = 15;
 
-  /// The unread dot: AX box 13 × 10 at cell x −1, y 11; the dot is 10 across (PROVISIONAL).
-  static const double unreadDotX = -1;
-  static const double unreadDotY = 11;
-  static const double unreadDotBox = 13;
-  static const double unreadDot = 10;
+  /// The unread dot (ML-01b): 8 pt across, its centre 12.5 pt before the sender's start, on
+  /// the sender's line; white on a selected row.
+  static const double unreadDot = 8;
+  static const double unreadDotBeforeSender = 12.5;
+
+  /// A selected message is marked read ~120 ms after the selection (ML-01b); after a delete
+  /// the next message is selected at once and the reader follows ~120 ms later.
+  static const Duration markReadDelay = Duration(milliseconds: 120);
+  static const Duration readerAfterDelete = Duration(milliseconds: 120);
 
   /// The selection fill across the row (inset and radius PROVISIONAL, from Mustache's list).
   static const double selectionInset = 8;
@@ -83,6 +87,23 @@ abstract final class MailMetrics {
   static const Size composer = Size(836, 779);
   static const double composerFieldsY = 61;
   static const double composerField = 40;
+
+  /// Composer motion (ML-01b): it appears opaque at 98.8 % and reaches 100 % in ~80 ms with a
+  /// 1 pt overshoot; closing an empty one fades and blurs while shrinking slightly towards
+  /// the centre in ~160 ms (shrink amount and blur PROVISIONAL).
+  static const Duration composerOpen = Duration(milliseconds: 80);
+  static const double composerOpenScale = 0.988;
+  static const Duration composerClose = Duration(milliseconds: 160);
+  static const double composerCloseScale = 0.96;
+  static const double composerCloseBlur = 8;
+
+  /// Sending (ML-01b): ~100 ms after the release the window moves straight up at a constant
+  /// ~3.3 pt/ms (no easing, fade or scale) and leaves behind the menu bar in ~250 ms.
+  static const Duration sendLiftDelay = Duration(milliseconds: 100);
+  static const double sendLiftSpeed = 3.3;
+
+  /// The Send button: a 38 pt circle (ML-01b).
+  static const double sendButton = 38;
 
   /// Add Account sheet: 528 × 416, the address box 488 × 40.
   static const Size accountSheet = Size(528, 416);
@@ -193,7 +214,8 @@ class MailColors {
     card: Color(0xFFFFFFFF),
     // PROVISIONAL: the yellow of the search matches.
     highlight: Color(0xFFFFE066),
-    send: Color(0xFF0171E1),
+    // ML-01b: sRGB #008fff.
+    send: Color(0xFF008FFF),
   );
 
   static const MailColors dark = MailColors(
@@ -221,7 +243,8 @@ class MailColors {
     reader: Color(0xFF1B1B1B),
     card: Color(0xFF272728),
     highlight: Color(0xFF8A7414),
-    send: Color(0xFF026ED1),
+    // PROVISIONAL: the dark Send circle was not measured; the light value.
+    send: Color(0xFF008FFF),
   );
 
   static MailColors of(BuildContext context) =>

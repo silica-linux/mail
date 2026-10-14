@@ -53,7 +53,7 @@ void main() {
       );
       expect(find.byType(Image), findsNothing);
       final rich =
-          tester.widget<RichText>(find.byType(RichText)).text as TextSpan;
+          tester.widget<RichText>(find.byType(RichText).first).text as TextSpan;
       final spans = <TextSpan>[];
       rich.visitChildren((s) {
         if (s is TextSpan) spans.add(s);
@@ -64,7 +64,12 @@ void main() {
       expect(opened, ['https://example.org/x']);
       final there = spans.firstWhere((s) => s.text == 'there');
       expect(there.recognizer, isNull);
-      expect(spans.any((s) => s.text == '[logo]'), isTrue);
+      // ML-01b: an image not loaded is a 320 × 120 box with the alt text.
+      expect(
+        tester.getSize(find.byKey(const ValueKey('missing image'))),
+        const Size(320, 120),
+      );
+      expect(find.text('logo'), findsOneWidget);
     },
   );
 }

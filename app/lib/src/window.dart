@@ -54,6 +54,7 @@ class MailWindow extends StatefulWidget {
     this.engineError,
     this.sampleData = false,
     this.openUrl,
+    this.lastMailbox,
   });
 
   final MailService service;
@@ -70,6 +71,10 @@ class MailWindow extends StatefulWidget {
 
   /// Opens a link with the system (tests replace it); null: `xdg-open`.
   final ValueChanged<String>? openUrl;
+
+  /// The mailbox shown last, kept by the app across windows: a new window after the last
+  /// one closed opens on it (APP-LC: the main window comes back on the same mailbox).
+  final ValueNotifier<String?>? lastMailbox;
 
   @override
   State<MailWindow> createState() => MailWindowState();
@@ -168,8 +173,12 @@ class MailWindowState extends State<MailWindow> {
     }
   }
 
+  /// Marks the selection read after the measured delay (ML-01b).
+  Timer? _markRead;
+
   @override
   void dispose() {
+    _markRead?.cancel();
     _events?.cancel();
     _lifecycle.dispose();
     _focus.dispose();
@@ -205,8 +214,14 @@ class MailWindowState extends State<MailWindow> {
         ..addAll(boxes);
       _loading = false;
       final current = _mailbox;
+      final remembered = widget.lastMailbox?.value;
       final still = current == null
-          ? null
+          ? (remembered == null
+                ? null
+                : boxes.values
+                      .expand((l) => l)
+                      .where((m) => m.id == remembered)
+                      .firstOrNull)
           : boxes[current.account]
                 ?.where((m) => m.id == current.id)
                 .firstOrNull;
@@ -302,11 +317,22 @@ class MailWindowState extends State<MailWindow> {
   }
 
   /// Selects a row. The head of a thread opens the whole conversation; a child row of an
-  /// expanded thread (`single`) opens that message only.
-  Future<void> select(String id, {bool single = false}) => _guard(() async {
+  /// expanded thread (`single`) opens that message only. The reader can follow after
+  /// `readerDelay` (after a delete, ML-01b); the messages are marked read
+  /// [MailMetrics.markReadDelay] after the selection.
+  Future<void> select(
+    String id, {
+    bool single = false,
+    Duration readerDelay = Duration.zero,
+  }) => _guard(() async {
     final row = _rows.where((r) => r.id == id).firstOrNull;
     if (row == null) return;
+    _markRead?.cancel();
     setState(() => _selected = id);
+    if (readerDelay > Duration.zero) {
+      await Future<void>.delayed(readerDelay);
+      if (!mounted || _selected != id) return;
+    }
     final thread = _threadKey(row);
     final members = single
         ? [row]
@@ -323,7 +349,10 @@ class MailWindowState extends State<MailWindow> {
         if (m.unread) m.id,
     ];
     if (unread.isNotEmpty) {
-      await _service.setFlags(unread, add: {MessageFlag.seen});
+      _markRead = Timer(MailMetrics.markReadDelay, () {
+        if (!mounted || _selected != id) return;
+        _guard(() => _service.setFlags(unread, add: {MessageFlag.seen}));
+      });
     }
   });
 
@@ -338,6 +367,7 @@ class MailWindowState extends State<MailWindow> {
   }
 
   Future<void> _selectMailbox(Mailbox m) async {
+    widget.lastMailbox?.value = m.id;
     setState(() {
       _mailbox = m;
       _searchText = null;
@@ -358,9 +388,19 @@ class MailWindowState extends State<MailWindow> {
     final next = order.indexOf(row.id);
     await _guard(() => _service.delete([row.id]));
     await _loadRows();
+    // No animation: the rows below move up in one frame, the next message is selected at
+    // once and the reader follows ~120 ms later (ML-01b).
     final threads = _threads;
     if (threads.isNotEmpty && next >= 0) {
-      await select(threads[next.clamp(0, threads.length - 1)].$1.id);
+      await select(
+        threads[next.clamp(0, threads.length - 1)].$1.id,
+        readerDelay: MailMetrics.readerAfterDelete,
+      );
+    } else {
+      setState(() {
+        _selected = null;
+        _conversation = const [];
+      });
     }
   }
 
@@ -973,7 +1013,9 @@ class MailWindowState extends State<MailWindow> {
                       ToolbarSegment(
                         key: const ValueKey('archive'),
                         width: 38,
-                        enabled: hasMessage,
+                        // Disabled, not silent, without an Archive mailbox.
+                        enabled:
+                            hasMessage && _roleBox(MailboxRole.archive) != null,
                         onTap: _archive,
                         icon: icon('archive', '▤'),
                       ),
@@ -1374,9 +1416,11 @@ class MailWindowState extends State<MailWindow> {
               Positioned(
                 left:
                     cellX +
-                    MailMetrics.unreadDotX +
-                    (MailMetrics.unreadDotBox - MailMetrics.unreadDot) / 2,
-                top: MailMetrics.unreadDotY,
+                    MailMetrics.senderX -
+                    MailMetrics.unreadDotBeforeSender -
+                    MailMetrics.unreadDot / 2,
+                // Centred on the sender's 18 pt line.
+                top: MailMetrics.senderY + (18 - MailMetrics.unreadDot) / 2,
                 child: Container(
                   key: ValueKey('unread dot ${row.id}'),
                   width: MailMetrics.unreadDot,
@@ -1708,6 +1752,23 @@ class MailWindowState extends State<MailWindow> {
     return (first + last).toUpperCase();
   }
 
+  bool get _darkAppearance =>
+      MediaQuery.maybePlatformBrightnessOf(context) == Brightness.dark;
+
+  /// HTML mail keeps its white page in the dark appearance (ML-01b), as the sender designed
+  /// it; plain text follows the appearance. The page's padding and corners are PROVISIONAL.
+  Widget _htmlPage(Widget body) => _darkAppearance
+      ? Container(
+          key: const ValueKey('html page'),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFFFF),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: body,
+        )
+      : body;
+
   Widget _message(MailColors colors, Message m) {
     final allowed = _remoteAllowed.contains(m.id);
     final html = m.html.trim();
@@ -1835,14 +1896,22 @@ class MailWindowState extends State<MailWindow> {
               ),
             ),
           if (html.isNotEmpty)
-            HtmlBody(
-              key: ValueKey('html ${m.id}'),
-              html: html,
-              style: body,
-              linkColor: colors.link,
-              quoteColor: colors.secondary,
-              allowRemote: allowed,
-              onLink: _openLink,
+            _htmlPage(
+              HtmlBody(
+                key: ValueKey('html ${m.id}'),
+                html: html,
+                style: _darkAppearance
+                    ? mailText(13.5, MailColors.light.text, height: 1.45)
+                    : body,
+                linkColor: _darkAppearance
+                    ? MailColors.light.link
+                    : colors.link,
+                quoteColor: _darkAppearance
+                    ? MailColors.light.secondary
+                    : colors.secondary,
+                allowRemote: allowed,
+                onLink: _openLink,
+              ),
             )
           else
             Text(m.text, key: ValueKey('text ${m.id}'), style: body),

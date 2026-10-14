@@ -1,6 +1,9 @@
 // The composer: a sheet over the window with To, Cc, Subject and the text. A reply, a reply to
 // all and a forward start from the message in the reader, with the quoted text below.
 
+import 'dart:async';
+import 'dart:ui' as ui;
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:silica_ui/silica_ui.dart';
@@ -121,7 +124,40 @@ class ComposeSheet extends StatefulWidget {
   State<ComposeSheet> createState() => _ComposeSheetState();
 }
 
-class _ComposeSheetState extends State<ComposeSheet> {
+/// The composer's open scale over time (ML-01b): from 98.8 % up past 100 % by ~1 pt on each
+/// side, then back to 100 %, in [MailMetrics.composerOpen] (the overshoot's shape is
+/// PROVISIONAL: only its size and the total time were measured).
+double composerOpenScale(double t) {
+  const overshoot = 1 + 2 / 836;
+  if (t <= 0) return MailMetrics.composerOpenScale;
+  if (t >= 1) return 1;
+  if (t < 0.75) {
+    final u = Curves.easeOut.transform(t / 0.75);
+    return MailMetrics.composerOpenScale +
+        (overshoot - MailMetrics.composerOpenScale) * u;
+  }
+  final u = Curves.easeInOut.transform((t - 0.75) / 0.25);
+  return overshoot + (1 - overshoot) * u;
+}
+
+class _ComposeSheetState extends State<ComposeSheet>
+    with TickerProviderStateMixin {
+  late final AnimationController _opening = AnimationController(
+    vsync: this,
+    duration: MailMetrics.composerOpen,
+  )..forward();
+  late final AnimationController _closing = AnimationController(
+    vsync: this,
+    duration: MailMetrics.composerClose,
+  );
+
+  /// Sending: the pause after the release, then the lift at constant speed (the whole span
+  /// is one controller so that frames keep coming during the pause).
+  AnimationController? _lifting;
+  double _liftDistance = 0;
+  Future<void>? _sendResult;
+  String? _sendError;
+
   late final TextEditingController _to = TextEditingController(
     text: formatAddresses(widget.request.to),
   );
@@ -155,6 +191,9 @@ class _ComposeSheetState extends State<ComposeSheet> {
 
   @override
   void dispose() {
+    _opening.dispose();
+    _closing.dispose();
+    _lifting?.dispose();
     _to.removeListener(_changed);
     for (final c in [_to, _cc, _subject, _body]) {
       c.dispose();
@@ -171,30 +210,72 @@ class _ComposeSheetState extends State<ComposeSheet> {
       setState(() => _error = l10n.noRecipients);
       return;
     }
+    if (_lifting != null) return;
     setState(() {
       _sending = true;
       _error = null;
+      _sendError = null;
     });
-    try {
-      await widget.service.send(
-        Draft(
-          account: widget.request.account.id,
-          to: to,
-          cc: parseAddresses(_cc.text),
-          subject: _subject.text,
-          text: _body.text,
-          inReplyTo: widget.request.inReplyTo,
-        ),
-      );
-      widget.onClose();
-    } on MailError catch (e) {
-      if (mounted) {
-        setState(() {
-          _sending = false;
-          _error = l10n.sendFailed(e.message);
-        });
-      }
+    // The message goes to the engine (its outbox) at once; the window leaves meanwhile.
+    _sendResult = _deliver(
+      Draft(
+        account: widget.request.account.id,
+        to: to,
+        cc: parseAddresses(_cc.text),
+        subject: _subject.text,
+        text: _body.text,
+        inReplyTo: widget.request.inReplyTo,
+      ),
+    );
+    final pause = MailMetrics.sendLiftDelay.inMicroseconds / 1000;
+    final lift = _liftDistance / MailMetrics.sendLiftSpeed;
+    final total = pause + lift;
+    final controller = AnimationController(
+      vsync: this,
+      duration: Duration(microseconds: (total * 1000).round()),
+    );
+    setState(() => _lifting = controller);
+    await controller.forward();
+    await _sendResult;
+    if (!mounted) return;
+    if (_sendError case final error?) {
+      // Back in place with the reason.
+      controller.dispose();
+      setState(() {
+        _lifting = null;
+        _sending = false;
+        _error = l10n.sendFailed(error);
+      });
+      return;
     }
+    widget.onClose();
+  }
+
+  /// Sends `draft`, keeping the engine's error for after the lift.
+  Future<void> _deliver(Draft draft) async {
+    try {
+      await widget.service.send(draft);
+    } on MailError catch (e) {
+      _sendError = e.message;
+    }
+  }
+
+  /// The upward offset while sending: nothing during the pause, then a constant speed.
+  double _liftOffset() {
+    final c = _lifting;
+    if (c == null) return 0;
+    final elapsed = c.value * c.duration!.inMicroseconds / 1000;
+    final pause = MailMetrics.sendLiftDelay.inMicroseconds / 1000;
+    return -((elapsed - pause).clamp(0.0, double.infinity) *
+            MailMetrics.sendLiftSpeed)
+        .clamp(0.0, _liftDistance);
+  }
+
+  /// Closing without sending (Cancel, Escape, Cmd+W): a short blur-fade towards the centre.
+  Future<void> _close() async {
+    if (_closing.isAnimating || _lifting != null) return;
+    await _closing.forward();
+    if (mounted) widget.onClose();
   }
 
   Widget _field(
@@ -231,8 +312,8 @@ class _ComposeSheetState extends State<ComposeSheet> {
     ),
   );
 
-  /// Send (ML-01: a 40 × 52 button: white upward arrow on a blue disc, faded
-  /// until there is a recipient; circle size PROVISIONAL).
+  /// Send (ML-01: a 40 × 52 button; ML-01b: a 38 pt #008fff circle with a white upward
+  /// arrow, faded until there is a recipient).
   Widget _sendButton(MailColors colors) {
     final ready = !_sending && parseAddresses(_to.text).isNotEmpty;
     return Semantics(
@@ -250,8 +331,8 @@ class _ComposeSheetState extends State<ComposeSheet> {
             child: Opacity(
               opacity: ready ? 1 : 0.4,
               child: Container(
-                width: 28,
-                height: 28,
+                width: MailMetrics.sendButton,
+                height: MailMetrics.sendButton,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: colors.send,
@@ -260,7 +341,7 @@ class _ComposeSheetState extends State<ComposeSheet> {
                 child: Text(
                   '↑',
                   style: mailText(
-                    16,
+                    19,
                     colors.selectionText,
                     weight: FontWeight.w600,
                     height: 1,
@@ -284,109 +365,138 @@ class _ComposeSheetState extends State<ComposeSheet> {
           meta: true,
           shift: true,
         ): _send,
-        const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
+        const SingleActivator(LogicalKeyboardKey.escape): _close,
+        const SingleActivator(LogicalKeyboardKey.keyW, meta: true): _close,
       },
-      child: ColoredBox(
-        color: const Color(0x33000000),
-        child: Center(
-          // ML-01: the composer window is 836 × 779; here it is a panel over the viewer,
-          // never larger than the window.
-          child: Container(
-            key: const ValueKey('composer panel'),
-            constraints: BoxConstraints.loose(MailMetrics.composer),
-            decoration: BoxDecoration(
-              color: colors.content,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colors.separator),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x40000000),
-                  blurRadius: 30,
-                  offset: Offset(0, 12),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          // The panel leaves upwards until its bottom edge is past the window's top.
+          final height = box.maxHeight.isFinite
+              ? box.maxHeight
+              : MailMetrics.composer.height;
+          final panel = height < MailMetrics.composer.height
+              ? height
+              : MailMetrics.composer.height;
+          _liftDistance = height / 2 + panel / 2;
+          return AnimatedBuilder(
+            animation: Listenable.merge([_opening, _closing, ?_lifting]),
+            builder: (context, child) {
+              final close = Curves.easeIn.transform(_closing.value);
+              final scale =
+                  composerOpenScale(_opening.value) *
+                  (1 - (1 - MailMetrics.composerCloseScale) * close);
+              final blur = MailMetrics.composerCloseBlur * close;
+              Widget panel = Transform.translate(
+                offset: Offset(0, _liftOffset()),
+                child: Transform.scale(scale: scale, child: child),
+              );
+              if (blur > 0) {
+                panel = ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                  child: panel,
+                );
+              }
+              return Opacity(
+                opacity: 1 - close,
+                child: ColoredBox(
+                  // PROVISIONAL: the dim behind the panel (the reference composer is its
+                  // own window, silica-linux/mail issue for a separate window).
+                  color: Color.fromRGBO(0, 0, 0, _lifting == null ? 0.2 : 0),
+                  child: Center(child: panel),
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  height: toolbarHeight,
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          _subject.text.isEmpty
-                              ? l10n.newMessage
-                              : _subject.text,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: mailText(
-                            13,
-                            colors.text,
-                            weight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        key: const ValueKey('compose cancel'),
-                        onTap: widget.onClose,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(
-                            l10n.cancel,
-                            style: mailText(13, colors.secondary),
-                          ),
-                        ),
-                      ),
-                      _sendButton(colors),
-                      const SizedBox(width: 8),
-                    ],
-                  ),
-                ),
-                // ML-01: the first field row starts at y 61.
-                const SizedBox(
-                  height: MailMetrics.composerFieldsY - toolbarHeight,
-                ),
-                Container(height: 1, color: colors.separator),
-                _field(colors, l10n.to, _to, _toFocus, 'compose to'),
-                _field(colors, l10n.cc, _cc, _ccFocus, 'compose cc'),
-                _field(
-                  colors,
-                  l10n.subject,
-                  _subject,
-                  _subjectFocus,
-                  'compose subject',
-                ),
-                if (_error case final error?)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Text(
-                      error,
-                      key: const ValueKey('compose error'),
-                      style: mailText(12, const Color(0xFFE5484D)),
-                    ),
-                  ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: EditableText(
-                      key: const ValueKey('compose body'),
-                      controller: _body,
-                      focusNode: _bodyFocus,
-                      style: mailText(13.5, colors.text, height: 1.45),
-                      cursorColor: colors.text,
-                      backgroundCursorColor: colors.text,
-                      maxLines: null,
-                      keyboardType: TextInputType.multiline,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+              );
+            },
+            child: _panel(colors),
+          );
+        },
       ),
     );
   }
+
+  Widget _panel(MailColors colors) => Container(
+    key: const ValueKey('composer panel'),
+    constraints: BoxConstraints.loose(MailMetrics.composer),
+    decoration: BoxDecoration(
+      color: colors.content,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: colors.separator),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x40000000),
+          blurRadius: 30,
+          offset: Offset(0, 12),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: toolbarHeight,
+          child: Row(
+            children: [
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  _subject.text.isEmpty ? l10n.newMessage : _subject.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: mailText(13, colors.text, weight: FontWeight.w600),
+                ),
+              ),
+              GestureDetector(
+                key: const ValueKey('compose cancel'),
+                onTap: _close,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    l10n.cancel,
+                    style: mailText(13, colors.secondary),
+                  ),
+                ),
+              ),
+              _sendButton(colors),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ),
+        // ML-01: the first field row starts at y 61.
+        const SizedBox(height: MailMetrics.composerFieldsY - toolbarHeight),
+        Container(height: 1, color: colors.separator),
+        _field(colors, l10n.to, _to, _toFocus, 'compose to'),
+        _field(colors, l10n.cc, _cc, _ccFocus, 'compose cc'),
+        _field(
+          colors,
+          l10n.subject,
+          _subject,
+          _subjectFocus,
+          'compose subject',
+        ),
+        if (_error case final error?)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text(
+              error,
+              key: const ValueKey('compose error'),
+              style: mailText(12, const Color(0xFFE5484D)),
+            ),
+          ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: EditableText(
+              key: const ValueKey('compose body'),
+              controller: _body,
+              focusNode: _bodyFocus,
+              style: mailText(13.5, colors.text, height: 1.45),
+              cursorColor: colors.text,
+              backgroundCursorColor: colors.text,
+              maxLines: null,
+              keyboardType: TextInputType.multiline,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }

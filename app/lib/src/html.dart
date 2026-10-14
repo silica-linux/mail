@@ -260,6 +260,12 @@ class _HtmlBodyState extends State<HtmlBody> {
               if (closing || skip > 0) break;
               final src = attributes['src'] ?? '';
               final alt = attributes['alt'] ?? '';
+              final missing = MissingImage(
+                alt: alt,
+                width: double.tryParse(attributes['width'] ?? ''),
+                height: double.tryParse(attributes['height'] ?? ''),
+                style: widget.style,
+              );
               if (_isRemote(src) && widget.allowRemote) {
                 final url = src.startsWith('//') ? 'https:$src' : src;
                 spans.add(
@@ -271,12 +277,14 @@ class _HtmlBodyState extends State<HtmlBody> {
                       ),
                       child: Image.network(
                         url,
-                        errorBuilder: (_, _, _) =>
-                            Text(alt, style: widget.style),
+                        errorBuilder: (_, _, _) => missing,
                       ),
                     ),
                   ),
                 );
+              } else if (_isRemote(src)) {
+                // Not loaded (remote content blocked): the same box as a missing image.
+                spans.add(WidgetSpan(child: missing));
               } else if (alt.isNotEmpty) {
                 spans.add(
                   TextSpan(
@@ -334,4 +342,92 @@ class _HtmlBodyState extends State<HtmlBody> {
     }
     return Text.rich(TextSpan(style: widget.style, children: spans));
   }
+}
+
+/// An image that could not be shown (ML-01b): a 320 × 120 box (or the size the HTML gives)
+/// with a 1 pt grey border, a placeholder glyph and the alt text.
+class MissingImage extends StatelessWidget {
+  const MissingImage({
+    super.key,
+    required this.alt,
+    required this.style,
+    this.width,
+    this.height,
+  });
+
+  static const double defaultWidth = 320;
+  static const double defaultHeight = 120;
+
+  /// PROVISIONAL: the border grey and the glyph (only the box and its 1 pt border measured).
+  static const Color border = Color(0xFFC6C6C8);
+
+  final String alt;
+  final TextStyle style;
+  final double? width;
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('missing image'),
+    width: width ?? defaultWidth,
+    height: height ?? defaultHeight,
+    decoration: BoxDecoration(border: Border.all(color: border)),
+    padding: const EdgeInsets.all(6),
+    alignment: Alignment.topLeft,
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const CustomPaint(size: Size(16, 13), painter: _PictureGlyph(border)),
+        if (alt.isNotEmpty) ...[
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              alt,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: style.copyWith(
+                fontSize: 12,
+                color: const Color(0xFF6E6E73),
+              ),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+class _PictureGlyph extends CustomPainter {
+  const _PictureGlyph(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Offset.zero & size,
+        const Radius.circular(2),
+      ).deflate(0.6),
+      paint,
+    );
+    final hills = Path()
+      ..moveTo(2, size.height - 2)
+      ..lineTo(size.width * 0.4, size.height * 0.45)
+      ..lineTo(size.width * 0.6, size.height * 0.7)
+      ..lineTo(size.width * 0.75, size.height * 0.55)
+      ..lineTo(size.width - 2, size.height - 2);
+    canvas.drawPath(hills, paint);
+    canvas.drawCircle(
+      Offset(size.width * 0.72, size.height * 0.3),
+      1.4,
+      paint..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_PictureGlyph old) => old.color != color;
 }
