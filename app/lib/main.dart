@@ -2,7 +2,6 @@
 
 import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:silica_ui/silica_ui.dart';
 
@@ -31,22 +30,9 @@ Future<void> main() async {
   );
 }
 
-/// The smallest window (ML-01). The embedder's `setSizeLimits` call, made directly on the
-/// window channel: `SilicaWindow.setSizeLimits` arrives with silica_ui 0.21, and this app
-/// still uses 0.20.
-// TODO(silica-ui): use SilicaWindow.setSizeLimits when the silica_ui ref moves past 0.20.
-Future<void> setMinimumSize() async {
-  try {
-    await SilicaWindow.channel.invokeMethod<Object?>('setSizeLimits', {
-      'minWidth': MailMetrics.minimumWindow.width,
-      'minHeight': MailMetrics.minimumWindow.height,
-    });
-  } on MissingPluginException {
-    // Outside Silica there are no limits to set.
-  } on PlatformException {
-    // Likewise.
-  }
-}
+/// The smallest window (ML-01).
+Future<void> setMinimumSize() =>
+    SilicaWindow.setSizeLimits(min: MailMetrics.minimumWindow);
 
 /// The engine on the session bus, or sample mail in memory when it does not answer (not
 /// installed, outside Silica). The second value says which.
