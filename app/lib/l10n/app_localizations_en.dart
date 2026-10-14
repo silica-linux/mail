@@ -60,11 +60,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get search => 'Search';
 
   @override
-  String searchResults(String query) {
-    return 'Results for “$query”';
-  }
-
-  @override
   String messageCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -240,4 +235,67 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get decimalSeparator => '.';
+
+  @override
+  String get searching => 'Searching';
+
+  @override
+  String searchScope(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count results',
+      one: '1 result',
+      zero: 'no results',
+    );
+    return 'All Mailboxes, $_temp0';
+  }
+
+  @override
+  String messageCountUnread(int count, int unread) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages',
+      one: '1 message',
+    );
+    return '$_temp0, $unread unread';
+  }
+
+  @override
+  String get senderContains => 'Sender contains:';
+
+  @override
+  String get subjectContains => 'Subject contains:';
+
+  @override
+  String get tokenSender => 'Sender';
+
+  @override
+  String get tokenSubject => 'Subject';
+
+  @override
+  String twoSenders(String first, String second) {
+    return '$first and $second';
+  }
+
+  @override
+  String get dayBeforeYesterday => 'Day before yesterday';
+
+  @override
+  String dateNumeric(String day, String month, String year) {
+    return '$month/$day/$year';
+  }
+
+  @override
+  String get sidebar => 'Sidebar';
+
+  @override
+  String get junk => 'Junk';
+
+  @override
+  String get help => 'Help';
+
+  @override
+  String get addressPlaceholder => 'name@example.com';
 }

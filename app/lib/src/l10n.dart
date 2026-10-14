@@ -114,21 +114,30 @@ String calendarDate(DateTime t) => l10n.dateShort(
 bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
-/// The date of a row in the list: the time today, "Yesterday", otherwise the date.
-String listDate(DateTime t, DateTime now) {
-  if (_sameDay(t, now)) return clockTime(t);
+/// A numeric date with a two-digit year ("10/11/26", "11/10/26"; ML-01).
+String numericDate(DateTime t) =>
+    l10n.dateNumeric(_two(t.day), _two(t.month), _two(t.year % 100));
+
+/// The relative day name, or null past the day before yesterday.
+String? _relativeDay(DateTime t, DateTime now) {
   if (_sameDay(t, now.subtract(const Duration(days: 1)))) return l10n.yesterday;
-  return calendarDate(t);
+  if (_sameDay(t, now.subtract(const Duration(days: 2)))) {
+    return l10n.dayBeforeYesterday;
+  }
+  return null;
 }
 
-/// The date in the reader header: always with the time.
+/// The date of a row in the list: the time today, "Yesterday", "Day before yesterday",
+/// otherwise the numeric date (ML-01).
+String listDate(DateTime t, DateTime now) {
+  if (_sameDay(t, now)) return clockTime(t);
+  return _relativeDay(t, now) ?? numericDate(t);
+}
+
+/// The date in the reader header: the time today, otherwise the day with the time (ML-01).
 String readerDate(DateTime t, DateTime now) {
-  final day = _sameDay(t, now)
-      ? l10n.today
-      : _sameDay(t, now.subtract(const Duration(days: 1)))
-      ? l10n.yesterday
-      : calendarDate(t);
-  return l10n.dateTime(day, clockTime(t));
+  if (_sameDay(t, now)) return clockTime(t);
+  return l10n.dateTime(_relativeDay(t, now) ?? calendarDate(t), clockTime(t));
 }
 
 /// A size in bytes, decimal units, one decimal under 10 ("48.2 KB", "48,2 KB").

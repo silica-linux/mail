@@ -48,8 +48,11 @@ void main() {
       tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
       'Inbox',
     );
-    // 20 messages in 10 threads (t0…t9).
-    expect(find.text('10 messages'), findsOneWidget);
+    // 20 messages in 10 threads (t0…t9); the subtitle counts messages and unread ones.
+    final subtitle = tester
+        .widget<Text>(find.byKey(const ValueKey('subtitle')))
+        .data!;
+    expect(subtitle, startsWith('20 messages'));
     expect(find.byKey(const ValueKey('unread dot m0')), findsOneWidget);
     expect(find.byKey(const ValueKey('no selection')), findsOneWidget);
     // The unread count of the inbox in the sidebar.
@@ -101,7 +104,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
-      'Results for “lunch”',
+      'Searching',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('subtitle'))).data,
+      startsWith('All Mailboxes, '),
     );
     expect(find.text('Lunch on Friday?'), findsWidgets);
     expect(find.text('Notes from Tuesday'), findsNothing);
@@ -198,9 +205,103 @@ void main() {
       tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
       'In arrivo',
     );
-    expect(find.text('10 messaggi'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('subtitle'))).data,
+      startsWith('20 messaggi'),
+    );
     expect(find.text('Nessun messaggio scelto'), findsOneWidget);
     expect(find.text('Cestino'), findsOneWidget);
+  });
+
+  testWidgets('list rows follow ML-01: 80 pt rows in a 325 pt list', (
+    tester,
+  ) async {
+    await pump(tester);
+    expect(tester.getSize(find.byKey(const ValueKey('row m0'))).height, 80);
+    expect(tester.getSize(find.byKey(const ValueKey('sidebar'))).width, 208);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('message list'))).width,
+      325,
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('unread dot m0'))),
+      const Size(10, 10),
+    );
+  });
+
+  testWidgets('a thread expands with Right and collapses with Left', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tapRow(tester, 'm0');
+    expect(find.byKey(const ValueKey('row m10')), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('thread block m0')), findsOneWidget);
+    expect(tester.getSize(find.byKey(const ValueKey('row m10'))).height, 45);
+    // The child opens only its message.
+    await tapRow(tester, 'm10');
+    expect(find.byKey(const ValueKey('subject m10')), findsOneWidget);
+    expect(find.byKey(const ValueKey('subject m0')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('thread count m0')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('row m10')), findsNothing);
+  });
+
+  testWidgets('the sidebar button hides and shows the sidebar', (tester) async {
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('sidebar toggle')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('sidebar')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('sidebar toggle')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('sidebar')), findsOneWidget);
+  });
+
+  testWidgets('a subject suggestion searches the subject with a token', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('search field')));
+    await tester.pump();
+    await tester.enterText(find.byType(EditableText), 'lunch');
+    await tester.pump();
+    expect(find.byKey(const ValueKey('search suggestions')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('suggest subject')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('search token')), findsOneWidget);
+    expect(find.byKey(const ValueKey('search suggestions')), findsNothing);
+    expect(find.text('Lunch on Friday?'), findsWidgets);
+  });
+
+  test('scope filters match the sender or the subject', () {
+    final rows = [
+      MessageSummary(
+        id: 'a',
+        thread: '',
+        from: const Address('anna@example.com', name: 'Anna'),
+        to: const [],
+        subject: 'Plans',
+        preview: '',
+        date: now,
+      ),
+      MessageSummary(
+        id: 'b',
+        thread: '',
+        from: const Address('marco@example.com', name: 'Marco'),
+        to: const [],
+        subject: 'Anna’s party',
+        preview: '',
+        date: now,
+      ),
+    ];
+    expect(filterByScope(rows, 'anna', SearchScope.sender).map((r) => r.id), [
+      'a',
+    ]);
+    expect(filterByScope(rows, 'anna', SearchScope.subject).map((r) => r.id), [
+      'b',
+    ]);
+    expect(filterByScope(rows, 'anna', SearchScope.all), hasLength(2));
   });
 
   testWidgets('dark appearance and inactive window use their colours', (
@@ -212,29 +313,18 @@ void main() {
     await tapRow(tester, 'm0');
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     await tester.pump();
-    final row = tester.widget<Container>(
-      find
-          .descendant(
-            of: find.byKey(const ValueKey('row m0')),
-            matching: find.byType(Container),
-          )
-          .first,
-    );
-    expect((row.decoration! as BoxDecoration).color, const Color(0xFF464646));
+    Color selection() =>
+        (tester
+                    .widget<DecoratedBox>(
+                      find.byKey(const ValueKey('selection m0')),
+                    )
+                    .decoration
+                as BoxDecoration)
+            .color!;
+    expect(selection(), const Color(0xFF464646));
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
-    final active = tester.widget<Container>(
-      find
-          .descendant(
-            of: find.byKey(const ValueKey('row m0')),
-            matching: find.byType(Container),
-          )
-          .first,
-    );
-    expect(
-      (active.decoration! as BoxDecoration).color,
-      const Color(0xFF0059D1),
-    );
+    expect(selection(), const Color(0xFF026ED1));
     expect(MailFlagCheck.ok, isTrue);
   });
 }

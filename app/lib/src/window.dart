@@ -20,6 +20,31 @@ import 'style.dart';
 /// What the composer starts from.
 enum ComposeKind { fresh, reply, replyAll, forward }
 
+/// What a search looks in: everything, or one field (a token before the text).
+enum SearchScope { all, sender, subject }
+
+/// The rows of a search that match `text` in the field of `scope` (all: the engine's match).
+List<MessageSummary> filterByScope(
+  List<MessageSummary> rows,
+  String text,
+  SearchScope scope,
+) {
+  final needle = text.toLowerCase();
+  return switch (scope) {
+    SearchScope.all => rows,
+    SearchScope.sender =>
+      rows
+          .where(
+            (r) =>
+                r.from.display.toLowerCase().contains(needle) ||
+                r.from.address.toLowerCase().contains(needle),
+          )
+          .toList(),
+    SearchScope.subject =>
+      rows.where((r) => r.subject.toLowerCase().contains(needle)).toList(),
+  };
+}
+
 class MailWindow extends StatefulWidget {
   const MailWindow({
     super.key,
@@ -61,7 +86,15 @@ class MailWindowState extends State<MailWindow> {
   List<Message> _conversation = const [];
   final Set<String> _remoteAllowed = {};
   String? _searchText;
+  SearchScope _scope = SearchScope.all;
   bool _searching = false;
+
+  /// The search suggestions under the field (while typing, before choosing).
+  bool _suggesting = false;
+
+  /// Expanded threads (by thread key).
+  final Set<String> _expanded = {};
+  bool _sidebarShown = true;
   bool _active = true;
   bool _loading = true;
   String? _banner;
@@ -161,6 +194,7 @@ class MailWindowState extends State<MailWindow> {
       rows = ids.isEmpty
           ? const []
           : await _service.listMessages(ListQuery(mailbox?.id ?? '', ids: ids));
+      rows = filterByScope(rows, search, _scope);
     } else if (mailbox == null) {
       rows = const [];
     } else {
@@ -202,29 +236,34 @@ class MailWindowState extends State<MailWindow> {
     }
   }
 
-  /// The rows grouped by conversation, newest first: one row per thread.
-  List<(MessageSummary, int)> get _threads {
+  static String _threadKey(MessageSummary r) =>
+      r.thread.isEmpty ? r.id : r.thread;
+
+  /// The rows grouped by conversation, newest first: the newest message of each thread and
+  /// all its messages (newest first).
+  List<(MessageSummary, List<MessageSummary>)> get _threads {
     final byThread = <String, List<MessageSummary>>{};
     for (final r in _rows) {
-      byThread.putIfAbsent(r.thread.isEmpty ? r.id : r.thread, () => []).add(r);
+      byThread.putIfAbsent(_threadKey(r), () => []).add(r);
     }
     final out = [
       for (final list in byThread.values)
-        ((list..sort((a, b) => b.date.compareTo(a.date))).first, list.length),
+        ((list..sort((a, b) => b.date.compareTo(a.date))).first, list),
     ]..sort((a, b) => b.$1.date.compareTo(a.$1.date));
     return out;
   }
 
-  Future<void> select(String id) => _guard(() async {
+  /// Selects a row. The head of a thread opens the whole conversation; a child row of an
+  /// expanded thread (`single`) opens that message only.
+  Future<void> select(String id, {bool single = false}) => _guard(() async {
     final row = _rows.where((r) => r.id == id).firstOrNull;
     if (row == null) return;
     setState(() => _selected = id);
-    final thread = row.thread.isEmpty ? row.id : row.thread;
-    final members =
-        _rows
-            .where((r) => (r.thread.isEmpty ? r.id : r.thread) == thread)
-            .toList()
-          ..sort((a, b) => b.date.compareTo(a.date));
+    final thread = _threadKey(row);
+    final members = single
+        ? [row]
+        : (_rows.where((r) => _threadKey(r) == thread).toList()
+            ..sort((a, b) => b.date.compareTo(a.date)));
     final messages = <Message>[];
     for (final m in members) {
       messages.add(await _service.getMessage(m.id));
@@ -243,11 +282,20 @@ class MailWindowState extends State<MailWindow> {
   MessageSummary? get _selectedRow =>
       _rows.where((r) => r.id == _selected).firstOrNull;
 
+  /// Expands or collapses the thread of `row` (Right and Left arrows, or the count).
+  void _setExpanded(MessageSummary row, bool expanded) {
+    final key = _threadKey(row);
+    if (_rows.where((r) => _threadKey(r) == key).length < 2) return;
+    setState(() => expanded ? _expanded.add(key) : _expanded.remove(key));
+  }
+
   Future<void> _selectMailbox(Mailbox m) async {
     setState(() {
       _mailbox = m;
       _searchText = null;
+      _scope = SearchScope.all;
       _searching = false;
+      _suggesting = false;
       _query.clear();
       _selected = null;
       _conversation = const [];
@@ -314,10 +362,12 @@ class MailWindowState extends State<MailWindow> {
     );
   }
 
-  Future<void> _runSearch() async {
+  Future<void> _runSearch([SearchScope scope = SearchScope.all]) async {
     final text = _query.text.trim();
     setState(() {
       _searchText = text.isEmpty ? null : text;
+      _scope = scope;
+      _suggesting = false;
       _selected = null;
       _conversation = const [];
     });
@@ -330,19 +380,30 @@ class MailWindowState extends State<MailWindow> {
     _query.clear();
     setState(() {
       _searching = false;
+      _suggesting = false;
       _searchText = null;
+      _scope = SearchScope.all;
     });
     _focus.requestFocus();
     await _loadRows();
   }
 
+  /// The rows in list order: each thread head, then its children when expanded.
+  List<(MessageSummary, bool)> get _visibleRows => [
+    for (final (head, members) in _threads) ...[
+      (head, false),
+      if (_expanded.contains(_threadKey(head)))
+        for (final m in members.skip(1)) (m, true),
+    ],
+  ];
+
   void _moveSelection(int delta) {
-    final threads = _threads;
-    if (threads.isEmpty) return;
-    final at = threads.indexWhere((t) => t.$1.id == _selected);
-    final next = (at < 0 ? (delta > 0 ? 0 : threads.length - 1) : at + delta)
-        .clamp(0, threads.length - 1);
-    select(threads[next].$1.id);
+    final rows = _visibleRows;
+    if (rows.isEmpty) return;
+    final at = rows.indexWhere((t) => t.$1.id == _selected);
+    final next = (at < 0 ? (delta > 0 ? 0 : rows.length - 1) : at + delta)
+        .clamp(0, rows.length - 1);
+    select(rows[next].$1.id, single: rows[next].$2);
   }
 
   void _openLink(String url) {
@@ -387,6 +448,12 @@ class MailWindowState extends State<MailWindow> {
             _moveSelection(1),
         const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
             _moveSelection(-1),
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () {
+          if (_selectedRow case final row?) _setExpanded(row, true);
+        },
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
+          if (_selectedRow case final row?) _setExpanded(row, false);
+        },
       },
       child: Focus(
         focusNode: _focus,
@@ -398,10 +465,11 @@ class MailWindowState extends State<MailWindow> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(
-                    width: MailMetrics.sidebarWidth,
-                    child: _sidebar(colors),
-                  ),
+                  if (_sidebarShown)
+                    SizedBox(
+                      width: MailMetrics.sidebarWidth,
+                      child: _sidebar(colors),
+                    ),
                   Expanded(
                     // The toolbar floats above the content, which starts under it (top
                     // inset) so it can later scroll under a glass toolbar.
@@ -418,7 +486,12 @@ class MailWindowState extends State<MailWindow> {
                                 child: _list(colors),
                               ),
                               Container(width: 1, color: colors.separator),
-                              Expanded(child: _reader(colors)),
+                              Expanded(
+                                child: ColoredBox(
+                                  color: colors.reader,
+                                  child: _reader(colors),
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -440,6 +513,13 @@ class MailWindowState extends State<MailWindow> {
                             child: _toolbar(colors),
                           ),
                         ),
+                        if (_suggesting && _query.text.trim().isNotEmpty)
+                          Positioned(
+                            top: toolbarHeight - 4,
+                            right: 7,
+                            width: MailMetrics.searchFieldWidth,
+                            child: _suggestions(colors),
+                          ),
                       ],
                     ),
                   ),
@@ -504,29 +584,63 @@ class MailWindowState extends State<MailWindow> {
 
   // MARK: sidebar
 
+  /// The sidebar button (ML-01: 40 × 52 at x 164 of the sidebar; in the toolbar when hidden).
+  Widget _sidebarToggle() => ToolbarScope(
+    active: _active,
+    child: ToolbarCapsule(
+      key: const ValueKey('sidebar toggle'),
+      children: [
+        ToolbarSegment(
+          width: MailMetrics.sidebarToggleWidth - 2,
+          onTap: () => setState(() => _sidebarShown = !_sidebarShown),
+          icon: (color) => Symbol(
+            'sidebar',
+            color: color,
+            iconsDir: widget.iconsDir,
+            fallback: '▯',
+          ),
+        ),
+      ],
+    ),
+  );
+
   Widget _sidebar(MailColors colors) {
     final children = <Widget>[
       // The top of the sidebar, under the window buttons, moves the window.
-      const SizedBox(
+      SizedBox(
         height: toolbarHeight,
-        child: WindowDragArea(child: SizedBox.expand()),
+        child: Stack(
+          children: [
+            const Positioned.fill(
+              child: WindowDragArea(child: SizedBox.expand()),
+            ),
+            Positioned(
+              left: MailMetrics.sidebarToggleX,
+              top: (toolbarHeight - toolbarCapsuleHeight) / 2,
+              child: _sidebarToggle(),
+            ),
+          ],
+        ),
       ),
     ];
+    var first = true;
     for (final account in _accounts) {
       children.add(
-        SizedBox(
+        Container(
           height: MailMetrics.sidebarHeading,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 18, top: 10),
-            child: Text(
-              account.name.isNotEmpty ? account.name : account.address,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: mailText(11, colors.tertiary, weight: FontWeight.w600),
-            ),
+          // PROVISIONAL: the gap above a section after the first (not measured).
+          margin: EdgeInsets.only(top: first ? 0 : 10),
+          padding: const EdgeInsets.only(left: MailMetrics.sidebarHeadingX),
+          alignment: Alignment.centerLeft,
+          child: Text(
+            account.name.isNotEmpty ? account.name : account.address,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: mailText(11, colors.sidebarHeading, weight: FontWeight.w600),
           ),
         ),
       );
+      first = false;
       for (final m in _mailboxes[account.id] ?? const <Mailbox>[]) {
         final chosen = m.id == _mailbox?.id && _searchText == null;
         children.add(
@@ -534,40 +648,64 @@ class MailWindowState extends State<MailWindow> {
             key: ValueKey('mailbox ${m.id}'),
             behavior: HitTestBehavior.opaque,
             onTap: () => _selectMailbox(m),
-            child: Container(
+            child: SizedBox(
               height: MailMetrics.sidebarRow,
-              margin: const EdgeInsets.symmetric(horizontal: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                color: chosen ? colors.sidebarSelection : null,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
+              child: Stack(
                 children: [
-                  Symbol(
-                    _mailboxSymbol(m.role),
-                    color: colors.unread,
-                    size: 16,
-                    iconsDir: widget.iconsDir,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      mailboxName(m),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: mailText(13, colors.text),
-                    ),
-                  ),
-                  if (m.unread > 0)
-                    Semantics(
-                      label: l10n.unreadCount(m.unread),
-                      child: Text(
-                        '${m.unread}',
-                        key: ValueKey('unread ${m.id}'),
-                        style: mailText(12, colors.secondary),
+                  if (chosen)
+                    Positioned.fill(
+                      left: MailMetrics.sidebarSelectionInset,
+                      right: MailMetrics.sidebarSelectionInset,
+                      child: DecoratedBox(
+                        key: ValueKey('mailbox selection ${m.id}'),
+                        decoration: BoxDecoration(
+                          color: colors.sidebarSelection,
+                          borderRadius: BorderRadius.circular(
+                            MailMetrics.sidebarSelectionRadius,
+                          ),
+                        ),
                       ),
                     ),
+                  Positioned(
+                    left: MailMetrics.sidebarIconX,
+                    top: (MailMetrics.sidebarRow - 18) / 2,
+                    child: Symbol(
+                      _mailboxSymbol(m.role),
+                      color: colors.thread,
+                      iconsDir: widget.iconsDir,
+                    ),
+                  ),
+                  Positioned(
+                    left: MailMetrics.sidebarTitleX,
+                    right: MailMetrics.sidebarCountEnd,
+                    top: 0,
+                    bottom: 0,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            mailboxName(m),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: mailText(
+                              13,
+                              colors.text,
+                              weight: chosen ? FontWeight.w600 : null,
+                            ),
+                          ),
+                        ),
+                        if (m.unread > 0)
+                          Semantics(
+                            label: l10n.unreadCount(m.unread),
+                            child: Text(
+                              '${m.unread}',
+                              key: ValueKey('unread ${m.id}'),
+                              style: mailText(12, colors.secondary),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -588,6 +726,7 @@ class MailWindowState extends State<MailWindow> {
       );
     }
     return ColoredBox(
+      key: const ValueKey('sidebar'),
       color: colors.sidebar,
       child: ListView(padding: EdgeInsets.zero, children: children),
     );
@@ -605,14 +744,34 @@ class MailWindowState extends State<MailWindow> {
 
   // MARK: toolbar
 
+  /// Below this width the search field becomes a button (PROVISIONAL threshold; the reference
+  /// collapses the toolbar into an overflow button at the minimum window).
+  static const double _searchFieldMinToolbar = 900;
+
+  Mailbox? _roleBox(MailboxRole role) =>
+      _mailboxes[_mailbox?.account]?.where((m) => m.role == role).firstOrNull;
+
+  Future<void> _junk() async {
+    final row = _selectedRow;
+    final junk = _roleBox(MailboxRole.junk);
+    if (row == null || junk == null) return;
+    await _guard(() => _service.move([row.id], junk.id));
+  }
+
   Widget _toolbar(MailColors colors) {
     final mailbox = _mailbox;
-    final title = _searchText != null
-        ? l10n.searchResults(_searchText!)
+    final searching = _searchText != null;
+    final title = searching
+        ? l10n.searching
         : mailbox == null
         ? l10n.appTitle
         : mailboxName(mailbox);
-    final count = _threads.length;
+    final unread = _rows.where((r) => r.unread).length;
+    final subtitle = searching
+        ? l10n.searchScope(_rows.length)
+        : unread == 0
+        ? l10n.messageCount(_rows.length)
+        : l10n.messageCountUnread(_rows.length, unread);
     final hasMessage = _conversation.isNotEmpty;
     Widget Function(Color) icon(String name, String fallback) =>
         (color) => Symbol(
@@ -624,118 +783,238 @@ class MailWindowState extends State<MailWindow> {
     return ToolbarScope(
       active: _active,
       child: WindowDragArea(
-        child: SizedBox(
-          key: const ValueKey('toolbar'),
-          height: toolbarHeight,
-          child: Row(
-            children: [
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      key: const ValueKey('title'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: mailText(
-                        15,
-                        _active
-                            ? ToolbarColors.of(context).title
-                            : ToolbarColors.of(context).titleInactive,
-                        weight: FontWeight.w600,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= _searchFieldMinToolbar;
+            return SizedBox(
+              key: const ValueKey('toolbar'),
+              height: toolbarHeight,
+              child: Row(
+                children: [
+                  if (!_sidebarShown) ...[
+                    const SizedBox(width: MailMetrics.windowButtonsEnd),
+                    _sidebarToggle(),
+                  ],
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: MailMetrics.titleBlockWidth,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            key: const ValueKey('title'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: mailText(
+                              15,
+                              _active
+                                  ? ToolbarColors.of(context).title
+                                  : ToolbarColors.of(context).titleInactive,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            subtitle,
+                            key: const ValueKey('subtitle'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: mailText(11, colors.secondary),
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      l10n.messageCount(count),
-                      style: mailText(11, colors.secondary),
+                  ),
+                  const Spacer(),
+                  ToolbarCapsule(
+                    key: const ValueKey('compose'),
+                    children: [
+                      ToolbarSegment(
+                        width: 38,
+                        onTap: () => compose(ComposeKind.fresh),
+                        icon: icon('compose', '✎'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  // ML-01: one capsule of 119 (38 / 40 / 39).
+                  ToolbarCapsule(
+                    key: const ValueKey('reply group'),
+                    separators: true,
+                    children: [
+                      ToolbarSegment(
+                        key: const ValueKey('reply'),
+                        width: 38,
+                        enabled: hasMessage,
+                        onTap: () => compose(ComposeKind.reply),
+                        icon: icon('reply', '↩'),
+                      ),
+                      ToolbarSegment(
+                        key: const ValueKey('reply all'),
+                        width: 40,
+                        enabled: hasMessage,
+                        onTap: () => compose(ComposeKind.replyAll),
+                        icon: icon('reply-all', '⇇'),
+                      ),
+                      ToolbarSegment(
+                        key: const ValueKey('forward'),
+                        width: 39,
+                        enabled: hasMessage,
+                        onTap: () => compose(ComposeKind.forward),
+                        icon: icon('forward', '↪'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  // ML-01: one capsule of 121 (38 / 35 / 42).
+                  ToolbarCapsule(
+                    separators: true,
+                    children: [
+                      ToolbarSegment(
+                        key: const ValueKey('archive'),
+                        width: 38,
+                        enabled: hasMessage,
+                        onTap: _archive,
+                        icon: icon('archive', '▤'),
+                      ),
+                      ToolbarSegment(
+                        key: const ValueKey('delete'),
+                        width: 35,
+                        enabled: hasMessage,
+                        onTap: _delete,
+                        icon: icon('trash', '✕'),
+                      ),
+                      ToolbarSegment(
+                        key: const ValueKey('junk'),
+                        width: 42,
+                        enabled:
+                            hasMessage && _roleBox(MailboxRole.junk) != null,
+                        onTap: _junk,
+                        icon: icon('xmark', '⊘'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  ToolbarCapsule(
+                    children: [
+                      ToolbarSegment(
+                        key: const ValueKey('flag'),
+                        width: 38,
+                        enabled: hasMessage,
+                        chosen: _selectedRow?.flagged ?? false,
+                        onTap: _toggleFlag,
+                        icon: icon('flag', '⚑'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  if (wide || _searching)
+                    _searchField(colors)
+                  else
+                    ToolbarCapsule(
+                      key: const ValueKey('search'),
+                      children: [
+                        ToolbarSegment(
+                          width: toolbarCapsuleHeight - 2,
+                          onTap: _startSearch,
+                          icon: icon('search', '⌕'),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              ToolbarCapsule(
-                key: const ValueKey('compose'),
-                children: [
-                  ToolbarSegment(
-                    width: toolbarCapsuleHeight - 2,
-                    onTap: () => compose(ComposeKind.fresh),
-                    icon: icon('compose', '✎'),
-                  ),
+                  const SizedBox(width: 7),
                 ],
               ),
-              const SizedBox(width: 8),
-              ToolbarCapsule(
-                key: const ValueKey('reply group'),
-                separators: true,
-                children: [
-                  ToolbarSegment(
-                    key: const ValueKey('reply'),
-                    width: 38,
-                    enabled: hasMessage,
-                    onTap: () => compose(ComposeKind.reply),
-                    icon: icon('reply', '↩'),
-                  ),
-                  ToolbarSegment(
-                    key: const ValueKey('reply all'),
-                    width: 38,
-                    enabled: hasMessage,
-                    onTap: () => compose(ComposeKind.replyAll),
-                    icon: icon('reply-all', '⇇'),
-                  ),
-                  ToolbarSegment(
-                    key: const ValueKey('forward'),
-                    width: 38,
-                    enabled: hasMessage,
-                    onTap: () => compose(ComposeKind.forward),
-                    icon: icon('forward', '↪'),
-                  ),
-                ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// The search field (ML-01: 299 × 38, magnifier and placeholder; a scope token before the
+  /// text after choosing a suggestion).
+  Widget _searchField(MailColors colors) {
+    final focused = _queryFocus.hasFocus;
+    final token = _searchText != null && _scope != SearchScope.all;
+    return GestureDetector(
+      onTap: _startSearch,
+      child: Container(
+        key: const ValueKey('search field'),
+        width: MailMetrics.searchFieldWidth,
+        height: toolbarCapsuleHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: colors.field,
+          borderRadius: BorderRadius.circular(toolbarCapsuleHeight / 2),
+          border: Border.all(
+            color: focused ? colors.unread : colors.separator,
+            width: focused ? 2 : 1,
+          ),
+        ),
+        child: Focus(
+          onFocusChange: (_) => setState(() {}),
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.escape) {
+              _endSearch();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Row(
+            children: [
+              Symbol(
+                'search',
+                color: colors.secondary,
+                size: 15,
+                iconsDir: widget.iconsDir,
+                fallback: '⌕',
               ),
-              const SizedBox(width: 8),
-              ToolbarCapsule(
-                separators: true,
-                children: [
-                  ToolbarSegment(
-                    key: const ValueKey('archive'),
-                    width: 38,
-                    enabled: hasMessage,
-                    onTap: _archive,
-                    icon: icon('archive', '▤'),
-                  ),
-                  ToolbarSegment(
-                    key: const ValueKey('delete'),
-                    width: 38,
-                    enabled: hasMessage,
-                    onTap: _delete,
-                    icon: icon('trash', '✕'),
-                  ),
-                  ToolbarSegment(
-                    key: const ValueKey('flag'),
-                    width: 38,
-                    enabled: hasMessage,
-                    chosen: _selectedRow?.flagged ?? false,
-                    onTap: _toggleFlag,
-                    icon: icon('flag', '⚑'),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 8),
-              if (_searching)
-                _searchField(colors)
-              else
-                ToolbarCapsule(
-                  key: const ValueKey('search'),
+              const SizedBox(width: 6),
+              if (token) ...[_scopeToken(colors), const SizedBox(width: 4)],
+              Expanded(
+                child: Stack(
+                  alignment: Alignment.centerLeft,
                   children: [
-                    ToolbarSegment(
-                      width: toolbarCapsuleHeight - 2,
-                      onTap: _startSearch,
-                      icon: icon('search', '⌕'),
+                    if (_query.text.isEmpty)
+                      IgnorePointer(
+                        child: Text(
+                          l10n.search,
+                          style: mailText(13, colors.tertiary),
+                        ),
+                      ),
+                    EditableText(
+                      controller: _query,
+                      focusNode: _queryFocus,
+                      style: mailText(13, colors.text),
+                      cursorColor: colors.text,
+                      backgroundCursorColor: colors.text,
+                      maxLines: 1,
+                      onChanged: (text) => setState(() {
+                        _searching = true;
+                        _suggesting = text.trim().isNotEmpty;
+                      }),
+                      onSubmitted: (_) => _runSearch(),
                     ),
                   ],
                 ),
-              const SizedBox(width: 7),
+              ),
+              if (_query.text.isNotEmpty)
+                GestureDetector(
+                  key: const ValueKey('search clear'),
+                  onTap: _endSearch,
+                  child: Symbol(
+                    'xmark',
+                    color: colors.tertiary,
+                    size: 12,
+                    iconsDir: widget.iconsDir,
+                    fallback: '×',
+                  ),
+                ),
             ],
           ),
         ),
@@ -743,49 +1022,122 @@ class MailWindowState extends State<MailWindow> {
     );
   }
 
-  Widget _searchField(MailColors colors) => Container(
-    key: const ValueKey('search field'),
-    width: 220,
-    height: toolbarCapsuleHeight,
-    padding: const EdgeInsets.symmetric(horizontal: 14),
-    alignment: Alignment.centerLeft,
+  /// The scope token in the search field: a small grey capsule with the field's name in
+  /// capitals and a chevron (size and colours PROVISIONAL: the token measured in Mustache).
+  Widget _scopeToken(MailColors colors) => Container(
+    key: const ValueKey('search token'),
+    height: 20,
+    padding: const EdgeInsets.symmetric(horizontal: 6),
+    alignment: Alignment.center,
     decoration: BoxDecoration(
-      color: colors.field,
-      borderRadius: BorderRadius.circular(toolbarCapsuleHeight / 2),
-      border: Border.all(color: colors.unread, width: 2),
+      color: colors.inactiveSelection,
+      borderRadius: BorderRadius.circular(5),
     ),
-    child: Focus(
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.escape) {
-          _endSearch();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Stack(
-        alignment: Alignment.centerLeft,
-        children: [
-          if (_query.text.isEmpty)
-            IgnorePointer(
-              child: Text(l10n.search, style: mailText(13, colors.tertiary)),
-            ),
-          EditableText(
-            controller: _query,
-            focusNode: _queryFocus,
-            style: mailText(13, colors.text),
-            cursorColor: colors.text,
-            backgroundCursorColor: colors.text,
-            maxLines: 1,
-            onChanged: (_) => setState(() {}),
-            onSubmitted: (_) => _runSearch(),
-          ),
-        ],
-      ),
+    child: Text(
+      '${(_scope == SearchScope.sender ? l10n.tokenSender : l10n.tokenSubject).toUpperCase()} ⌄',
+      style: mailText(10, colors.text, weight: FontWeight.w600),
     ),
   );
 
+  /// The suggestions under the search field while typing: the text itself, then the text in
+  /// one field.
+  Widget _suggestions(MailColors colors) {
+    final text = _query.text.trim();
+    Widget item(String key, String label, SearchScope scope) => GestureDetector(
+      key: ValueKey(key),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _runSearch(scope),
+      child: Container(
+        height: 24,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.centerLeft,
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: mailText(13, colors.text),
+        ),
+      ),
+    );
+    // PROVISIONAL panel: the in-window menu look (ML-01 shows a menu under the field).
+    return Container(
+      key: const ValueKey('search suggestions'),
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.separator),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33000000),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          item('suggest all', text, SearchScope.all),
+          item(
+            'suggest sender',
+            '${l10n.senderContains} $text',
+            SearchScope.sender,
+          ),
+          item(
+            'suggest subject',
+            '${l10n.subjectContains} $text',
+            SearchScope.subject,
+          ),
+        ],
+      ),
+    );
+  }
+
   // MARK: list
+
+  /// `text` with the search matches on a yellow background.
+  Widget _marked(
+    String text,
+    TextStyle style,
+    MailColors colors, {
+    int maxLines = 1,
+  }) {
+    final query = _searchText?.toLowerCase();
+    if (query == null || query.isEmpty) {
+      return Text(
+        text,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
+    }
+    final spans = <TextSpan>[];
+    final lower = text.toLowerCase();
+    var at = 0;
+    while (true) {
+      final hit = lower.indexOf(query, at);
+      if (hit < 0) break;
+      if (hit > at) spans.add(TextSpan(text: text.substring(at, hit)));
+      spans.add(
+        TextSpan(
+          text: text.substring(hit, hit + query.length),
+          style: TextStyle(
+            backgroundColor: colors.highlight,
+            color: colors.text,
+          ),
+        ),
+      );
+      at = hit + query.length;
+    }
+    if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
+    return Text.rich(
+      TextSpan(style: style, children: spans),
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
 
   Widget _list(MailColors colors) {
     final threads = _threads;
@@ -805,130 +1157,328 @@ class MailWindowState extends State<MailWindow> {
       key: const ValueKey('message list'),
       padding: EdgeInsets.only(top: _topInset),
       itemCount: threads.length,
-      itemExtent: MailMetrics.listRow,
       itemBuilder: (context, i) {
-        final (row, count) = threads[i];
-        final chosen = row.id == _selected;
-        final fill = chosen
-            ? (_active ? colors.selection : colors.inactiveSelection)
-            : null;
-        final onFill = chosen && _active;
-        final primary = onFill ? colors.selectionText : colors.text;
-        final secondary = onFill ? colors.selectionSecondary : colors.secondary;
-        return GestureDetector(
-          key: ValueKey('row ${row.id}'),
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            _focus.requestFocus();
-            select(row.id);
-          },
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            padding: const EdgeInsets.fromLTRB(22, 9, MailMetrics.listInset, 8),
-            decoration: BoxDecoration(
-              color: fill,
-              borderRadius: BorderRadius.circular(8),
-              border: chosen || i == threads.length - 1
-                  ? null
-                  : Border(bottom: BorderSide(color: colors.separator)),
-            ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                if (row.unread)
-                  Positioned(
-                    left: -15,
-                    top: 4,
-                    child: Container(
-                      key: ValueKey('unread dot ${row.id}'),
-                      width: MailMetrics.unreadDot,
-                      height: MailMetrics.unreadDot,
+        final (head, members) = threads[i];
+        final expanded =
+            members.length > 1 && _expanded.contains(_threadKey(head));
+        final nextChosen =
+            i + 1 < threads.length && threads[i + 1].$1.id == _selected;
+        final headRow = _row(
+          colors,
+          head,
+          count: members.length,
+          expanded: expanded,
+          separator:
+              !expanded &&
+              head.id != _selected &&
+              !nextChosen &&
+              i != threads.length - 1,
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!expanded) headRow,
+            AnimatedSize(
+              duration: expanded
+                  ? MailMetrics.threadExpand
+                  : MailMetrics.threadCollapse,
+              // PROVISIONAL curve: only the duration was measured.
+              curve: Curves.easeOut,
+              alignment: Alignment.topCenter,
+              child: expanded
+                  ? Container(
+                      key: ValueKey('thread block ${head.id}'),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: MailMetrics.selectionInset,
+                      ),
                       decoration: BoxDecoration(
-                        color: onFill ? colors.selectionText : colors.unread,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            row.from.display,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: mailText(
-                              13,
-                              primary,
-                              weight: row.unread
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                            ),
-                          ),
+                        color: colors.threadTint,
+                        borderRadius: BorderRadius.circular(
+                          MailMetrics.selectionRadius,
                         ),
-                        if (count > 1)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: Text(
-                              '$count',
-                              style: mailText(11, secondary),
-                            ),
-                          ),
-                        if (row.flagged)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: Symbol(
-                              'flag-fill',
-                              color: onFill
-                                  ? colors.selectionText
-                                  : colors.flagged,
-                              size: 11,
-                              iconsDir: widget.iconsDir,
-                              fallback: '⚑',
-                            ),
-                          ),
-                        if (row.attachments > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: Symbol(
-                              'paperclip',
-                              color: secondary,
-                              size: 11,
-                              iconsDir: widget.iconsDir,
-                              fallback: '⌇',
-                            ),
-                          ),
-                        Text(
-                          listDate(row.date, _now),
-                          style: mailText(11, secondary),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      row.subject,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: mailText(12.5, primary),
-                    ),
-                    const SizedBox(height: 2),
-                    Expanded(
-                      child: Text(
-                        row.preview,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: mailText(12, secondary, height: 1.25),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _row(
+                            colors,
+                            head,
+                            count: members.length,
+                            expanded: true,
+                            separator: false,
+                            inBlock: true,
+                          ),
+                          for (final m in members.skip(1)) _childRow(colors, m),
+                        ],
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
             ),
-          ),
+          ],
         );
       },
+    );
+  }
+
+  /// A row of the list (ML-01: 80 pt; the cell is 276 wide at x 16).
+  Widget _row(
+    MailColors colors,
+    MessageSummary row, {
+    required int count,
+    required bool expanded,
+    required bool separator,
+    bool inBlock = false,
+  }) {
+    final chosen = row.id == _selected;
+    final fill = chosen
+        ? (_active ? colors.selection : colors.inactiveSelection)
+        : null;
+    final onFill = chosen && _active;
+    final primary = onFill ? colors.selectionText : colors.text;
+    final secondary = onFill ? colors.selectionSecondary : colors.secondary;
+    final blue = onFill ? colors.selectionText : colors.thread;
+    // Inside an expanded block the block is already inset.
+    final inset = inBlock ? 0.0 : MailMetrics.selectionInset;
+    final cellX =
+        MailMetrics.cellX - (inBlock ? MailMetrics.selectionInset : 0);
+    final mailbox = _searchText == null
+        ? null
+        : _mailboxes.values
+              .expand((l) => l)
+              .where((m) => m.id == row.mailbox)
+              .firstOrNull;
+    return GestureDetector(
+      key: ValueKey('row ${row.id}'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        _focus.requestFocus();
+        select(row.id);
+      },
+      child: SizedBox(
+        height: MailMetrics.listRow,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            if (fill != null)
+              Positioned.fill(
+                left: inset,
+                right: inset,
+                child: DecoratedBox(
+                  key: ValueKey('selection ${row.id}'),
+                  decoration: BoxDecoration(
+                    color: fill,
+                    borderRadius: BorderRadius.circular(
+                      MailMetrics.selectionRadius,
+                    ),
+                  ),
+                ),
+              ),
+            if (row.unread)
+              Positioned(
+                left:
+                    cellX +
+                    MailMetrics.unreadDotX +
+                    (MailMetrics.unreadDotBox - MailMetrics.unreadDot) / 2,
+                top: MailMetrics.unreadDotY,
+                child: Container(
+                  key: ValueKey('unread dot ${row.id}'),
+                  width: MailMetrics.unreadDot,
+                  height: MailMetrics.unreadDot,
+                  decoration: BoxDecoration(
+                    color: onFill ? colors.selectionText : colors.unread,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            Positioned(
+              left: cellX + MailMetrics.senderX,
+              width: MailMetrics.cellWidth - MailMetrics.senderX,
+              top: MailMetrics.senderY,
+              height: 18,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _marked(
+                      count > 1 ? _threadSenders(row) : row.from.display,
+                      mailText(13, primary, weight: FontWeight.w600),
+                      colors,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      top: MailMetrics.dateY - MailMetrics.senderY,
+                      left: 6,
+                    ),
+                    child: Text(
+                      mailbox == null
+                          ? listDate(row.date, _now)
+                          : '${mailboxName(mailbox)}  ${listDate(row.date, _now)}',
+                      key: ValueKey('date ${row.id}'),
+                      style: mailText(12, secondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              left: cellX + MailMetrics.senderX,
+              width: MailMetrics.cellWidth - MailMetrics.senderX,
+              top: MailMetrics.subjectY,
+              height: 16,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _marked(row.subject, mailText(13, primary), colors),
+                  ),
+                  if (row.flagged)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Symbol(
+                        'flag-fill',
+                        color: onFill ? colors.selectionText : colors.flagged,
+                        size: 11,
+                        iconsDir: widget.iconsDir,
+                        fallback: '⚑',
+                      ),
+                    ),
+                  if (count > 1)
+                    GestureDetector(
+                      key: ValueKey('thread count ${row.id}'),
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _setExpanded(row, !expanded),
+                      child: Semantics(
+                        button: true,
+                        expanded: expanded,
+                        label: l10n.messageCount(count),
+                        child: SizedBox(
+                          // ML-01: the disclosure is 24 × 16.
+                          height: 16,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(width: 4),
+                              Text('$count', style: mailText(12, blue)),
+                              const SizedBox(width: 3),
+                              Container(
+                                width: 13,
+                                height: 13,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: blue),
+                                ),
+                                child: Transform.rotate(
+                                  angle: expanded ? 1.5708 : 0,
+                                  child: Symbol(
+                                    'chevron-right',
+                                    color: blue,
+                                    size: 8,
+                                    iconsDir: widget.iconsDir,
+                                    fallback: '›',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Positioned(
+              left: cellX + MailMetrics.senderX,
+              width: MailMetrics.cellWidth - MailMetrics.senderX,
+              top: MailMetrics.summaryY,
+              height: MailMetrics.summaryLine * 2,
+              child: _marked(
+                row.preview,
+                mailText(12, secondary, height: MailMetrics.summaryLine / 12),
+                colors,
+                maxLines: 2,
+              ),
+            ),
+            if (separator)
+              Positioned(
+                left: cellX + MailMetrics.senderX,
+                width: MailMetrics.cellWidth - MailMetrics.senderX,
+                bottom: 0,
+                height: 1,
+                child: ColoredBox(color: colors.separator),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The senders of a thread: "Anna and Marco" (two), or the newest sender.
+  String _threadSenders(MessageSummary head) {
+    final key = _threadKey(head);
+    final names = <String>[];
+    for (final r in _rows.where((r) => _threadKey(r) == key)) {
+      final first = r.from.display.split(' ').first;
+      if (!names.contains(first)) names.add(first);
+    }
+    return names.length == 2
+        ? l10n.twoSenders(names[0], names[1])
+        : head.from.display;
+  }
+
+  /// A child of an expanded thread: sender and one summary line (~45 pt).
+  Widget _childRow(MailColors colors, MessageSummary row) {
+    final chosen = row.id == _selected;
+    final fill = chosen
+        ? (_active ? colors.selection : colors.inactiveSelection)
+        : null;
+    final onFill = chosen && _active;
+    final primary = onFill ? colors.selectionText : colors.text;
+    final secondary = onFill ? colors.selectionSecondary : colors.secondary;
+    final x =
+        MailMetrics.cellX - MailMetrics.selectionInset + MailMetrics.senderX;
+    return GestureDetector(
+      key: ValueKey('row ${row.id}'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        _focus.requestFocus();
+        select(row.id, single: true);
+      },
+      child: Container(
+        height: MailMetrics.threadChildRow,
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(MailMetrics.selectionRadius),
+        ),
+        // PROVISIONAL: positions inside the child row (only its height was measured).
+        padding: EdgeInsets.fromLTRB(x, 6, 12, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    row.from.display,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: mailText(13, primary, weight: FontWeight.w600),
+                  ),
+                ),
+                Text(listDate(row.date, _now), style: mailText(12, secondary)),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              row.preview,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: mailText(12, secondary),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -966,30 +1516,54 @@ class MailWindowState extends State<MailWindow> {
           child: Text(
             l10n.noSelection,
             key: const ValueKey('no selection'),
-            style: mailText(14, colors.tertiary),
+            // ML-01: large light grey text.
+            style: mailText(22, colors.tertiary),
           ),
         ),
       );
     }
     return ListView(
       key: const ValueKey('reader'),
+      // PROVISIONAL: the margin around the cards (the 8 pt gap between cards is measured).
       padding: EdgeInsets.fromLTRB(
-        MailMetrics.readerPadding,
-        _topInset + MailMetrics.readerPadding,
-        MailMetrics.readerPadding,
-        MailMetrics.readerPadding,
+        MailMetrics.cardGap,
+        _topInset,
+        MailMetrics.cardGap,
+        MailMetrics.cardGap,
       ),
       children: [
-        for (var i = 0; i < _conversation.length; i++) ...[
-          if (i > 0)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              child: Container(height: 1, color: colors.separator),
+        SizedBox(
+          height: MailMetrics.readerHeader,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                l10n.messageCount(_conversation.length),
+                key: const ValueKey('reader count'),
+                style: mailText(11, colors.secondary),
+              ),
             ),
+          ),
+        ),
+        for (var i = 0; i < _conversation.length; i++) ...[
+          if (i > 0) const SizedBox(height: MailMetrics.cardGap),
           _message(colors, _conversation[i]),
         ],
       ],
     );
+  }
+
+  /// The initials of a sender, for the avatar.
+  static String initials(Address a) {
+    final words = (a.name.isEmpty ? a.address.split('@').first : a.name)
+        .split(RegExp(r'[\s._-]+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (words.isEmpty) return '?';
+    final first = words.first.characters.first;
+    final last = words.length > 1 ? words.last.characters.first : '';
+    return (first + last).toUpperCase();
   }
 
   Widget _message(MailColors colors, Message m) {
@@ -999,132 +1573,182 @@ class MailWindowState extends State<MailWindow> {
         html.isNotEmpty && (m.remoteContent || hasRemoteContent(html));
     String names(List<Address> list) => list.map((a) => a.display).join(', ');
     final body = mailText(13.5, colors.text, height: 1.45);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                m.from.display,
-                style: mailText(15, colors.text, weight: FontWeight.w600),
+    return Container(
+      key: ValueKey('card ${m.id}'),
+      padding: const EdgeInsets.all(MailMetrics.cardPadding),
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: BorderRadius.circular(MailMetrics.cardRadius),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: MailMetrics.avatar,
+                height: MailMetrics.avatar,
+                alignment: Alignment.center,
+                // PROVISIONAL gradient: "gray-blue" in ML-01.
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFFA3ADBC), Color(0xFF7D8798)],
+                  ),
+                ),
+                child: Text(
+                  initials(m.from),
+                  style: mailText(
+                    13,
+                    const Color(0xFFFFFFFF),
+                    weight: FontWeight.w600,
+                  ),
+                ),
               ),
-            ),
-            Text(
-              readerDate(m.date, _now),
-              style: mailText(11.5, colors.secondary),
-            ),
-          ],
-        ),
-        const SizedBox(height: MailMetrics.headerGap),
-        Text(
-          m.subject,
-          key: ValueKey('subject ${m.id}'),
-          style: mailText(13, colors.text, weight: FontWeight.w500),
-        ),
-        const SizedBox(height: 4),
-        if (m.to.isNotEmpty)
-          Text(
-            '${l10n.to}: ${names(m.to)}',
-            style: mailText(12, colors.secondary),
-          ),
-        if (m.cc.isNotEmpty)
-          Text(
-            '${l10n.cc}: ${names(m.cc)}',
-            style: mailText(12, colors.secondary),
-          ),
-        const SizedBox(height: 14),
-        if (remote && !allowed)
-          Container(
-            key: ValueKey('remote banner ${m.id}'),
-            margin: const EdgeInsets.only(bottom: 14),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: colors.banner,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    l10n.remoteContentBlocked,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      m.from.display,
+                      style: mailText(13, colors.text, weight: FontWeight.w600),
+                    ),
+                    Text(
+                      m.subject,
+                      key: ValueKey('subject ${m.id}'),
+                      style: mailText(13, colors.text),
+                    ),
+                    if (m.to.isNotEmpty)
+                      Text(
+                        '${l10n.to}: ${names(m.to)}',
+                        style: mailText(12, colors.secondary),
+                      ),
+                    if (m.cc.isNotEmpty)
+                      Text(
+                        '${l10n.cc}: ${names(m.cc)}',
+                        style: mailText(12, colors.secondary),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    readerDate(m.date, _now),
                     style: mailText(12, colors.secondary),
                   ),
-                ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  key: ValueKey('load remote ${m.id}'),
-                  onTap: () => setState(() => _remoteAllowed.add(m.id)),
-                  child: Text(
-                    l10n.loadRemoteContent,
-                    style: mailText(12, colors.link, weight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (html.isNotEmpty)
-          HtmlBody(
-            key: ValueKey('html ${m.id}'),
-            html: html,
-            style: body,
-            linkColor: colors.link,
-            quoteColor: colors.secondary,
-            allowRemote: allowed,
-            onLink: _openLink,
-          )
-        else
-          Text(m.text, key: ValueKey('text ${m.id}'), style: body),
-        if (m.attachments.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(
-            l10n.attachmentCount(m.attachments.length),
-            style: mailText(11, colors.tertiary, weight: FontWeight.w600),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final a in m.attachments)
-                GestureDetector(
-                  key: ValueKey('attachment ${a.id}'),
-                  onTap: () => _saveAttachment(m, a),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 7,
+                  if (m.attachments.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Symbol(
+                        'paperclip',
+                        color: colors.secondary,
+                        size: 13,
+                        iconsDir: widget.iconsDir,
+                        fallback: '⌇',
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: colors.banner,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Symbol(
-                          'paperclip',
-                          color: colors.secondary,
-                          size: 13,
-                          iconsDir: widget.iconsDir,
-                          fallback: '⌇',
-                        ),
-                        const SizedBox(width: 6),
-                        Text(a.name, style: mailText(12, colors.text)),
-                        const SizedBox(width: 6),
-                        Text(
-                          fileSize(a.size),
-                          style: mailText(11, colors.secondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                ],
+              ),
             ],
           ),
+          Padding(
+            // PROVISIONAL: the space around the header separator.
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Container(height: 1, color: colors.separator),
+          ),
+          if (remote && !allowed)
+            Container(
+              key: ValueKey('remote banner ${m.id}'),
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: colors.banner,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      l10n.remoteContentBlocked,
+                      style: mailText(12, colors.secondary),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    key: ValueKey('load remote ${m.id}'),
+                    onTap: () => setState(() => _remoteAllowed.add(m.id)),
+                    child: Text(
+                      l10n.loadRemoteContent,
+                      style: mailText(12, colors.link, weight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (html.isNotEmpty)
+            HtmlBody(
+              key: ValueKey('html ${m.id}'),
+              html: html,
+              style: body,
+              linkColor: colors.link,
+              quoteColor: colors.secondary,
+              allowRemote: allowed,
+              onLink: _openLink,
+            )
+          else
+            Text(m.text, key: ValueKey('text ${m.id}'), style: body),
+          if (m.attachments.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final a in m.attachments)
+                  GestureDetector(
+                    key: ValueKey('attachment ${a.id}'),
+                    onTap: () => _saveAttachment(m, a),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.banner,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Symbol(
+                            'paperclip',
+                            color: colors.secondary,
+                            size: 13,
+                            iconsDir: widget.iconsDir,
+                            fallback: '⌇',
+                          ),
+                          const SizedBox(width: 6),
+                          Text(a.name, style: mailText(12, colors.text)),
+                          const SizedBox(width: 6),
+                          Text(
+                            fileSize(a.size),
+                            style: mailText(11, colors.secondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 

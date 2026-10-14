@@ -21,7 +21,8 @@ never crash, everything is a command, measured parity, English everywhere). On t
 - HTML mail is rendered by `lib/src/html.dart`: no scripts, no styles, no network unless the user
   loads remote content for that message; only `http`, `https` and `mailto` links reach the
   system handler.
-- Geometry and colours live in `lib/src/style.dart` and are provisional until ML-01 is measured.
+- Geometry and colours live in `lib/src/style.dart`, measured in ML-01; unmeasured values are
+  marked PROVISIONAL there.
 - The toolbar is an overlay above the content, which starts at a top inset: the shared glass
   toolbar of silica_ui (silica-linux/silica-ui#2) will let the lists scroll under it.
 

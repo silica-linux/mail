@@ -48,14 +48,17 @@ void main() {
     final now = DateTime(2026, 10, 14, 15, 30);
     expect(listDate(DateTime(2026, 10, 14, 9, 5), now), '09:05');
     expect(listDate(DateTime(2026, 10, 13, 9, 5), now), 'Yesterday');
-    expect(listDate(DateTime(2026, 3, 2, 9, 5), now), 'Mar 2, 2026');
+    expect(listDate(DateTime(2026, 10, 12, 9, 5), now), 'Day before yesterday');
+    expect(listDate(DateTime(2026, 10, 11, 9, 5), now), '10/11/26');
+    expect(listDate(DateTime(2026, 3, 2, 9, 5), now), '03/02/26');
     expect(fileSize(48213), '48 KB');
     expect(fileSize(4821), '4.8 KB');
     useLocale(const Locale('it'));
     expect(listDate(DateTime(2026, 10, 13, 9, 5), now), 'Ieri');
-    expect(listDate(DateTime(2026, 3, 2, 9, 5), now), '2 mar 2026');
+    expect(listDate(DateTime(2026, 3, 2, 9, 5), now), '02/03/26');
     expect(fileSize(4821), '4,8 KB');
-    expect(readerDate(DateTime(2026, 10, 14, 9, 5), now), 'Oggi alle 09:05');
+    expect(readerDate(DateTime(2026, 10, 14, 9, 5), now), '09:05');
+    expect(readerDate(DateTime(2026, 10, 13, 12, 16), now), 'Ieri alle 12:16');
     useLocale(const Locale('en'));
   });
 

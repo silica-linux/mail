@@ -200,12 +200,6 @@ abstract class AppLocalizations {
   /// **'Search'**
   String get search;
 
-  /// Title of the list while searching.
-  ///
-  /// In en, this message translates to:
-  /// **'Results for “{query}”'**
-  String searchResults(String query);
-
   /// Under the mailbox title.
   ///
   /// In en, this message translates to:
@@ -469,6 +463,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'.'**
   String get decimalSeparator;
+
+  /// Title of the list while searching.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching'**
+  String get searching;
+
+  /// Under the title while searching: where and how many.
+  ///
+  /// In en, this message translates to:
+  /// **'All Mailboxes, {count, plural, =0{no results} =1{1 result} other{{count} results}}'**
+  String searchScope(int count);
+
+  /// Under the mailbox title when some messages are unread.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 message} other{{count} messages}}, {unread} unread'**
+  String messageCountUnread(int count, int unread);
+
+  /// Search suggestion: look for the text in the sender only.
+  ///
+  /// In en, this message translates to:
+  /// **'Sender contains:'**
+  String get senderContains;
+
+  /// Search suggestion: look for the text in the subject only.
+  ///
+  /// In en, this message translates to:
+  /// **'Subject contains:'**
+  String get subjectContains;
+
+  /// Search token before the text (shown in capitals).
+  ///
+  /// In en, this message translates to:
+  /// **'Sender'**
+  String get tokenSender;
+
+  /// Search token before the text (shown in capitals).
+  ///
+  /// In en, this message translates to:
+  /// **'Subject'**
+  String get tokenSubject;
+
+  /// The senders of a two-person conversation in the list.
+  ///
+  /// In en, this message translates to:
+  /// **'{first} and {second}'**
+  String twoSenders(String first, String second);
+
+  /// Date of a message received two days ago.
+  ///
+  /// In en, this message translates to:
+  /// **'Day before yesterday'**
+  String get dayBeforeYesterday;
+
+  /// A date in the list, numeric with a two-digit year.
+  ///
+  /// In en, this message translates to:
+  /// **'{month}/{day}/{year}'**
+  String dateNumeric(String day, String month, String year);
+
+  /// Toolbar button: show or hide the sidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Sidebar'**
+  String get sidebar;
+
+  /// Toolbar button: move the message to the Junk mailbox.
+  ///
+  /// In en, this message translates to:
+  /// **'Junk'**
+  String get junk;
+
+  /// Accessible label of the help button.
+  ///
+  /// In en, this message translates to:
+  /// **'Help'**
+  String get help;
+
+  /// Placeholder of the address field in the account setup.
+  ///
+  /// In en, this message translates to:
+  /// **'name@example.com'**
+  String get addressPlaceholder;
 }
 
 class _AppLocalizationsDelegate
