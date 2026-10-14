@@ -262,7 +262,16 @@ impl Engine {
     pub async fn sync(&self, account: &str) -> Result<()> {
         self.store.account(account)?;
         self.wake(account).await;
+        self.retry_outbox(account);
         Ok(())
+    }
+
+    /// Tries the queued messages of `account` again now.
+    fn retry_outbox(&self, account: &str) {
+        match self.store.retry_outgoing(account) {
+            Ok(()) => self.outbox.notify_one(),
+            Err(err) => warn!("outbox: {err}"),
+        }
     }
 
     async fn wake(&self, account: &str) {
@@ -598,6 +607,10 @@ impl Engine {
                     continue;
                 }
             };
+            if backoff != FIRST_BACKOFF {
+                // Back online: what waits in the outbox goes now.
+                self.retry_outbox(&id);
+            }
             backoff = FIRST_BACKOFF;
             // Connected: sync, then wait for news; a failure reconnects.
             loop {

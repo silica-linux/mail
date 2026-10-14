@@ -778,6 +778,17 @@ impl Store {
         Ok(())
     }
 
+    /// Makes the queued messages of `account` due now (the network is back, or the user asked).
+    pub fn retry_outgoing(&self, account: &str) -> Result<()> {
+        self.with(|db| {
+            db.execute(
+                "UPDATE outbox SET next_try = 0 WHERE account = ?1",
+                [account],
+            )
+        })?;
+        Ok(())
+    }
+
     pub fn send_failed(&self, id: i64, error: &str, next_try: i64) -> Result<()> {
         self.with(|db| {
             db.execute(
