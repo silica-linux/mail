@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=Mail
+Name[it]=Posta
+GenericName=Mail Client
+GenericName[it]=Client di posta
+Comment=Read and write email
+Comment[it]=Leggi e scrivi email
+Exec=@EMBEDDER@ --size 1200x760 --title Mail --app-id dev.frascella.Mail @BUNDLE@
+Icon=internet-mail
+X-Silica-Icon=mail
+StartupWMClass=dev.frascella.Mail
+Categories=Network;Email;
+Keywords=email;mail;imap;smtp;inbox;
+Keywords[it]=email;posta;imap;smtp;messaggi;
+Terminal=false
+OnlyShowIn=Silica;
