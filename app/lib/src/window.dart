@@ -501,6 +501,8 @@ class MailWindowState extends State<MailWindow> {
       open(url);
       return;
     }
+    // Under `flutter test` nothing starts on the machine running the tests.
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return;
     Process.run('xdg-open', [url]).ignore();
   }
 
