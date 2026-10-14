@@ -1,0 +1,4 @@
+.claude/
+build/
+.dart_tool/
+target/
