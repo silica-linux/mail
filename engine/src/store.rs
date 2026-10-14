@@ -375,15 +375,14 @@ impl Store {
                     .map(|p| p.id.to_string())
                     .unwrap_or_default()
             };
-            let name = if b.delimiter.is_empty() {
-                b.name.clone()
+            let name = crate::mutf7::decode(if b.delimiter.is_empty() {
+                &b.name
             } else {
                 b.name
                     .rsplit(b.delimiter.as_str())
                     .next()
                     .unwrap_or(&b.name)
-                    .to_owned()
-            };
+            });
             out.push(MailboxView {
                 id: b.id.to_string(),
                 name: if b.name.eq_ignore_ascii_case("INBOX") {

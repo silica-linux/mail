@@ -3,9 +3,14 @@
 
 pub mod autoconfig;
 pub mod config;
+pub mod dbus;
+pub mod engine;
 pub mod error;
 pub mod http;
+pub mod imap;
 pub mod message;
+pub mod mutf7;
 pub mod net;
 pub mod secrets;
+pub mod smtp;
 pub mod store;
