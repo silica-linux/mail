@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 888 542" width="888" height="542" font-family="Helvetica, Arial, sans-serif" font-size="10">
+<title>Mail viewer window: columns and toolbar, points</title>
+<defs><marker id="a" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 6 3 0 6z" fill="#c0392b"/></marker></defs>
+<rect width="888" height="542" fill="#ffffff"/>
+<g transform="translate(60 40)">
+<rect width="768.0" height="432.0" rx="10" fill="#f8f8f8" stroke="#9a9a9a"/>
+<rect x="124.8" y="0" width="195.0" height="432.0" fill="#ffffff"/>
+<line x1="320.1" y1="0" x2="320.1" y2="432.0" stroke="#e6e6e6"/>
+<rect x="0" y="0" width="124.8" height="432.0" rx="10" fill="#eaeaeb"/>
+<rect x="120.0" y="0" width="4.8" height="432.0" fill="#eaeaeb"/>
+<line x1="0" y1="31.2" x2="768.0" y2="31.2" stroke="#b0b0b0" stroke-dasharray="3 3"/>
+<circle cx="15.6" cy="15.6" r="4.2" fill="#ff5f57"/>
+<circle cx="29.4" cy="15.6" r="4.2" fill="#febc2e"/>
+<circle cx="43.2" cy="15.6" r="4.2" fill="#28c840"/>
+<rect x="98.4" y="4.2" width="24.0" height="22.8" rx="11.4" fill="#ffffff" stroke="#d0d0d0"/>
+<text x="133.2" y="14.4" font-weight="bold" fill="#222">Mailbox</text><text x="133.2" y="24.0" fill="#888" font-size="8">12 messages, 6 unread</text>
+<rect x="336.0" y="4.2" width="48.6" height="22.8" rx="11.4" fill="#ffffff" stroke="#d0d0d0"/>
+<rect x="393.0" y="4.2" width="24.0" height="22.8" rx="11.4" fill="#ffffff" stroke="#d0d0d0"/>
+<rect x="425.4" y="4.2" width="71.4" height="22.8" rx="11.4" fill="#ffffff" stroke="#d0d0d0"/>
+<rect x="505.2" y="4.2" width="72.6" height="22.8" rx="11.4" fill="#ffffff" stroke="#d0d0d0"/>
+<rect x="586.2" y="4.2" width="30.0" height="22.8" rx="11.4" fill="#ffffff" stroke="#d0d0d0"/>
+<rect x="624.6" y="4.2" width="46.2" height="22.8" rx="11.4" fill="#ffffff" stroke="#d0d0d0"/>
+<rect x="581.4" y="4.2" width="179.4" height="22.8" rx="11.4" fill="#ffffff" stroke="#d0d0d0"/>
+<text x="588.6" y="18.6" fill="#999">Search</text>
+<rect x="134.4" y="36.0" width="165.6" height="48.0" rx="4.8" fill="none"/>
+<line x1="144.6" y1="84.0" x2="300.0" y2="84.0" stroke="#e6e6e6"/>
+<rect x="134.4" y="84.0" width="165.6" height="48.0" rx="4.8" fill="#0171e1"/>
+<line x1="144.6" y1="132.0" x2="300.0" y2="132.0" stroke="#e6e6e6"/>
+<rect x="134.4" y="132.0" width="165.6" height="48.0" rx="4.8" fill="none"/>
+<line x1="144.6" y1="180.0" x2="300.0" y2="180.0" stroke="#e6e6e6"/>
+<rect x="134.4" y="180.0" width="165.6" height="48.0" rx="4.8" fill="none"/>
+<line x1="144.6" y1="228.0" x2="300.0" y2="228.0" stroke="#e6e6e6"/>
+<rect x="134.4" y="228.0" width="165.6" height="48.0" rx="4.8" fill="none"/>
+<line x1="144.6" y1="276.0" x2="300.0" y2="276.0" stroke="#e6e6e6"/>
+<rect x="134.4" y="276.0" width="165.6" height="48.0" rx="4.8" fill="none"/>
+<line x1="144.6" y1="324.0" x2="300.0" y2="324.0" stroke="#e6e6e6"/>
+<rect x="4.8" y="42.0" width="115.2" height="19.2" rx="3.6" fill="#d3d6dc"/>
+<rect x="33.0" y="47.4" width="54.0" height="7.2" fill="#c4c4c8"/>
+<rect x="4.8" y="61.2" width="115.2" height="19.2" rx="3.6" fill="none"/>
+<rect x="33.0" y="66.6" width="54.0" height="7.2" fill="#c4c4c8"/>
+<rect x="4.8" y="80.4" width="115.2" height="19.2" rx="3.6" fill="none"/>
+<rect x="33.0" y="85.8" width="54.0" height="7.2" fill="#c4c4c8"/>
+<rect x="4.8" y="111.0" width="115.2" height="19.2" rx="3.6" fill="none"/>
+<rect x="33.0" y="116.4" width="54.0" height="7.2" fill="#c4c4c8"/>
+<rect x="4.8" y="130.2" width="115.2" height="19.2" rx="3.6" fill="none"/>
+<rect x="33.0" y="135.6" width="54.0" height="7.2" fill="#c4c4c8"/>
+<rect x="4.8" y="149.4" width="115.2" height="19.2" rx="3.6" fill="none"/>
+<rect x="33.0" y="154.8" width="54.0" height="7.2" fill="#c4c4c8"/>
+<rect x="4.8" y="168.6" width="115.2" height="19.2" rx="3.6" fill="none"/>
+<rect x="33.0" y="174.0" width="54.0" height="7.2" fill="#c4c4c8"/>
+<rect x="4.8" y="187.8" width="115.2" height="19.2" rx="3.6" fill="none"/>
+<rect x="33.0" y="193.2" width="54.0" height="7.2" fill="#c4c4c8"/>
+<text x="544.2" y="228.0" text-anchor="middle" fill="#aaaaaa" font-size="14">No message selected</text>
+</g>
+<line x1="60.0" y1="486.0" x2="184.8" y2="486.0" stroke="#c0392b" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="122.4" y="500.0" text-anchor="middle" fill="#c0392b">sidebar 208</text>
+<line x1="184.8" y1="486.0" x2="379.8" y2="486.0" stroke="#c0392b" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="282.0" y="500.0" text-anchor="middle" fill="#c0392b">list 325</text>
+<line x1="380.4" y1="486.0" x2="828.0" y2="486.0" stroke="#c0392b" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="604.2" y="500.0" text-anchor="middle" fill="#c0392b">reader 746</text>
+<line x1="60.0" y1="26" x2="828.0" y2="26" stroke="#c0392b" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="444.0" y="22" text-anchor="middle" fill="#c0392b">1280</text>
+<line x1="46" y1="40.0" x2="46" y2="71.2" stroke="#c0392b" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="43" y="58.0" text-anchor="end" fill="#c0392b">52</text>
+<line x1="26" y1="40.0" x2="26" y2="472.0" stroke="#c0392b" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="23" y="256.0" text-anchor="end" fill="#c0392b">720</text>
+<line x1="641.4" y1="81.2" x2="820.8" y2="81.2" stroke="#c0392b" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="732.0" y="95.2" text-anchor="middle" fill="#c0392b">search 299 × 38, y 7</text>
+<text x="10" y="520" fill="#666">Light appearance (ML-01). Toolbar capsule positions are drawn in order only; widths: sidebar 40, filter+more, new 40,</text>
+<text x="10" y="533" fill="#666">reply group 119, archive group 121, move, flag 77. Sidebar rows 32, headers 19, selected row #d3d6dc; list rows 80, selected #0171e1.</text>
+</svg>
