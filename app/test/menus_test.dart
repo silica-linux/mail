@@ -497,7 +497,7 @@ void main() {
   testWidgets('Italian menus', (tester) async {
     await pump(tester, locale: const Locale('it'));
     expect(menus().map((m) => m['label']), [
-      'Posta',
+      'Mail',
       'File',
       'Modifica',
       'Vista',
