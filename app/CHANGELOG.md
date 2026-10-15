@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Menus in Silica's menu bar (silica-desktop#175): the nine menus of the reference (app, File,
+  Edit, View, Mailbox, Message, Format, Window, Help) with their items, shortcuts and states,
+  published with silica_ui's `SilicaMenuBar` (silica_ui 0.34.1). New Message, Reply, Reply All,
+  Forward, Mark as Read / Unread, Junk, Flag, Archive, Move to, Get New Mail, Synchronize, Mark
+  All as Read, Expand / Collapse All Conversations, the sidebar, Go to Mailbox and Send work
+  from the bar; features Mail does not have yet are shown grayed.
 - First run: with no account, the account setup opens by itself. When the settings of an
   address are not found, the servers are entered by hand. Google servers ask for an app
   password, and Microsoft servers are said not supported until sign-in through the provider

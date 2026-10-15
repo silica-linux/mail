@@ -12,6 +12,7 @@ import 'package:silica_ui/silica_ui.dart';
 import 'compose.dart';
 import 'html.dart';
 import 'l10n.dart';
+import 'menus.dart';
 import 'model.dart';
 import 'service.dart';
 import 'setup.dart';
@@ -84,6 +85,9 @@ class MailWindowState extends State<MailWindow> {
   final FocusNode _focus = FocusNode(debugLabel: 'mail window');
   final TextEditingController _query = TextEditingController();
   final FocusNode _queryFocus = FocusNode(debugLabel: 'search');
+
+  /// The composer's handle for the menu bar (Send, Close).
+  final ComposeController _composer = ComposeController();
   StreamSubscription<MailEvent>? _events;
   late final AppLifecycleListener _lifecycle;
 
@@ -142,6 +146,7 @@ class MailWindowState extends State<MailWindow> {
     final state = WidgetsBinding.instance.lifecycleState;
     _active = state == null || state == AppLifecycleState.resumed;
     _events = _service.events.listen(_onEvent);
+    _composer.addListener(_menusChanged);
     _engineError = widget.engineError;
     if (_engineError == null) {
       _loadAccounts();
@@ -178,6 +183,7 @@ class MailWindowState extends State<MailWindow> {
 
   @override
   void dispose() {
+    _composer.dispose();
     _markRead?.cancel();
     _events?.cancel();
     _lifecycle.dispose();
@@ -506,29 +512,158 @@ class MailWindowState extends State<MailWindow> {
     Process.run('xdg-open', [url]).ignore();
   }
 
+  void _menusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// The mailboxes in sidebar order (every account's).
+  List<Mailbox> get _allMailboxes => [
+    for (final a in _accounts) ...?_mailboxes[a.id],
+  ];
+
+  Future<void> _moveSelected(String mailbox) async {
+    final row = _selectedRow;
+    if (row == null) return;
+    await _guard(() => _service.move([row.id], mailbox));
+  }
+
+  /// Mark as Read / Mark as Unread for the open conversation.
+  Future<void> _toggleRead() async {
+    final ids = [for (final m in _conversation) m.id];
+    if (ids.isEmpty) return;
+    _markRead?.cancel();
+    final unread = _rows.any((r) => ids.contains(r.id) && r.unread);
+    await _guard(
+      () => unread
+          ? _service.setFlags(ids, add: {MessageFlag.seen})
+          : _service.setFlags(ids, remove: {MessageFlag.seen}),
+    );
+  }
+
+  Future<void> _markAllRead() async {
+    final ids = [
+      for (final r in _rows)
+        if (r.unread) r.id,
+    ];
+    if (ids.isEmpty) return;
+    await _guard(() => _service.setFlags(ids, add: {MessageFlag.seen}));
+  }
+
+  Future<void> _syncAll() async {
+    for (final a in _accounts) {
+      await _guard(() => _service.sync(a.id));
+    }
+  }
+
+  Future<void> _syncCurrent() async {
+    final id = _mailbox?.account;
+    if (id == null) return;
+    await _guard(() => _service.sync(id));
+  }
+
+  void _expandAll() => setState(() {
+    for (final (head, members) in _threads) {
+      if (members.length > 1) _expanded.add(_threadKey(head));
+    }
+  });
+
+  /// Goes to the previous or next mailbox in the sidebar's order.
+  void _stepMailbox(int delta) {
+    final all = _allMailboxes;
+    if (all.isEmpty) return;
+    final at = all.indexWhere((m) => m.id == _mailbox?.id);
+    final next = at < 0
+        ? (delta > 0 ? 0 : all.length - 1)
+        : (at + delta).clamp(0, all.length - 1);
+    if (next != at) _selectMailbox(all[next]);
+  }
+
+  /// What the menu bar shows and does now (menus.dart).
+  MailMenuModel _menuModel() {
+    final composing = _compose != null;
+    final row = _selectedRow;
+    final hasMessage = row != null && _conversation.isNotEmpty;
+    final ids = {for (final m in _conversation) m.id};
+    final account = _accounts
+        .where((a) => a.id == _mailbox?.account)
+        .firstOrNull;
+    final inbox = _roleBox(MailboxRole.inbox);
+    final sent = _roleBox(MailboxRole.sent);
+    final archive = _roleBox(MailboxRole.archive);
+    final junk = _roleBox(MailboxRole.junk);
+    VoidCallback? go(Mailbox? box) =>
+        box == null ? null : () => _selectMailbox(box);
+    VoidCallback? move(Mailbox? box) => box == null || box.id == _mailbox?.id
+        ? null
+        : () => _moveSelected(box.id);
+    return MailMenuModel(
+      composing: composing,
+      editing: composing || _searching,
+      canSend: _composer.canSend,
+      hasMessage: hasMessage,
+      messageUnread: _rows.any((r) => ids.contains(r.id) && r.unread),
+      flagged: row?.flagged ?? false,
+      sidebarShown: _sidebarShown,
+      sender: _conversation.firstOrNull?.from.display,
+      accountName: account == null
+          ? null
+          : (account.name.isNotEmpty ? account.name : account.address),
+      accountNames: [
+        for (final a in _accounts) a.name.isNotEmpty ? a.name : a.address,
+      ],
+      moveTargets: [
+        for (final a in _accounts)
+          (
+            account: a.name.isNotEmpty ? a.name : a.address,
+            mailboxes: [
+              for (final m in _mailboxes[a.id] ?? const <Mailbox>[])
+                (name: mailboxName(m), run: move(m)),
+            ],
+          ),
+      ],
+      newMessage: () => compose(ComposeKind.fresh),
+      openAccounts: () => setState(() => _setup = true),
+      closeComposer: () => unawaited(_composer.close()),
+      search: _startSearch,
+      deleteMessage: row == null ? null : () => unawaited(_delete()),
+      getNewMail: _accounts.isEmpty ? null : () => unawaited(_syncAll()),
+      syncAccount: account == null ? null : () => unawaited(_syncCurrent()),
+      markAllRead: _rows.any((r) => r.unread)
+          ? () => unawaited(_markAllRead())
+          : null,
+      expandAll: _rows.isEmpty ? null : _expandAll,
+      collapseAll: _rows.isEmpty ? null : () => setState(_expanded.clear),
+      toggleSidebar: () => setState(() => _sidebarShown = !_sidebarShown),
+      goInbox: go(inbox),
+      goSent: go(sent),
+      moveInbox: hasMessage ? move(inbox) : null,
+      moveSent: hasMessage ? move(sent) : null,
+      previousMailbox: () => _stepMailbox(-1),
+      nextMailbox: () => _stepMailbox(1),
+      send: () => unawaited(_composer.send()),
+      reply: () => compose(ComposeKind.reply),
+      replyAll: () => compose(ComposeKind.replyAll),
+      forward: () => compose(ComposeKind.forward),
+      toggleRead: () => unawaited(_toggleRead()),
+      junk: junk == null ? null : () => unawaited(_junk()),
+      flag: () => unawaited(_toggleFlag()),
+      clearFlag: () => unawaited(_toggleFlag()),
+      toggleFlag: () => unawaited(_toggleFlag()),
+      archive: archive == null ? null : () => unawaited(_archive()),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => SilicaMenuBar(
+    menus: mailMenus(l10n, _menuModel()),
+    child: _window(context),
+  );
+
+  Widget _window(BuildContext context) {
     final colors = MailColors.of(context);
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
-            compose(ComposeKind.fresh),
-        const SingleActivator(LogicalKeyboardKey.keyR, meta: true): () =>
-            compose(ComposeKind.reply),
-        const SingleActivator(
-          LogicalKeyboardKey.keyR,
-          meta: true,
-          shift: true,
-        ): () =>
-            compose(ComposeKind.replyAll),
-        const SingleActivator(
-          LogicalKeyboardKey.keyF,
-          meta: true,
-          shift: true,
-        ): () =>
-            compose(ComposeKind.forward),
-        const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
-            _startSearch,
+        // ⌘N, ⌘R, ⇧⌘R, ⇧⌘F and ⌘F are the menu bar's (SilicaMenuBar binds them).
         const SingleActivator(LogicalKeyboardKey.escape): () {
           if (_searching || _searchText != null) _endSearch();
         },
@@ -575,6 +710,7 @@ class MailWindowState extends State<MailWindow> {
                 Positioned.fill(
                   child: ComposeSheet(
                     key: const ValueKey('composer'),
+                    controller: _composer,
                     request: request,
                     service: _service,
                     onClose: () {

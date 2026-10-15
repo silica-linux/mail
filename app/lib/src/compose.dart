@@ -108,13 +108,51 @@ class ComposeRequest {
   final String? inReplyTo;
 }
 
+/// The composer's actions for the menu bar (Message › Send, File › Close): the sheet attaches
+/// its own while it is open and tells when the state of the menu items changes.
+class ComposeController extends ChangeNotifier {
+  Future<void> Function()? _send;
+  Future<void> Function()? _close;
+  bool _canSend = false;
+
+  /// The composer has a recipient (the send button is not dimmed).
+  bool get canSend => _canSend;
+
+  /// Sends the message, as the send button does.
+  Future<void> send() async => await _send?.call();
+
+  /// Closes the composer without sending, as Cancel does.
+  Future<void> close() async => await _close?.call();
+
+  void _attach(Future<void> Function() send, Future<void> Function() close) {
+    _send = send;
+    _close = close;
+  }
+
+  void _detach() {
+    _send = null;
+    _close = null;
+    _canSend = false;
+  }
+
+  void _setCanSend(bool value) {
+    if (value == _canSend) return;
+    _canSend = value;
+    notifyListeners();
+  }
+}
+
 class ComposeSheet extends StatefulWidget {
   const ComposeSheet({
     super.key,
     required this.request,
     required this.service,
     required this.onClose,
+    this.controller,
   });
+
+  /// The menu bar's handle on this composer; null: no menu actions.
+  final ComposeController? controller;
 
   final ComposeRequest request;
   final MailService service;
@@ -182,15 +220,23 @@ class _ComposeSheetState extends State<ComposeSheet>
     super.initState();
     // The send button is dimmed until there is a recipient.
     _to.addListener(_changed);
+    widget.controller?._attach(_send, _close);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        widget.controller?._setCanSend(parseAddresses(_to.text).isNotEmpty);
+      }
       (widget.request.to.isEmpty ? _toFocus : _bodyFocus).requestFocus();
     });
   }
 
-  void _changed() => setState(() {});
+  void _changed() {
+    setState(() {});
+    widget.controller?._setCanSend(parseAddresses(_to.text).isNotEmpty);
+  }
 
   @override
   void dispose() {
+    widget.controller?._detach();
     _opening.dispose();
     _closing.dispose();
     _lifting?.dispose();

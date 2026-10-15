@@ -613,6 +613,1518 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'name@example.com'**
   String get addressPlaceholder;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get menuFile;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get menuEdit;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get menuView;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Mailbox'**
+  String get menuMailbox;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Message'**
+  String get menuMessage;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Format'**
+  String get menuFormat;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Window'**
+  String get menuWindow;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Help'**
+  String get menuHelp;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'About Mail'**
+  String get menuAboutMail;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings…'**
+  String get menuSettingsDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts…'**
+  String get menuAccountsDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Account…'**
+  String get menuAddAccountDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'New Viewer Window'**
+  String get menuNewViewerWindow;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Message'**
+  String get menuOpenMessage;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Messages'**
+  String get menuOpenMessages;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get menuClose;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get menuSave;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Save As…'**
+  String get menuSaveAsDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Attach Files…'**
+  String get menuAttachFilesDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Save Attachments…'**
+  String get menuSaveAttachmentsDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Look Attachments…'**
+  String get menuQuickLookAttachmentsDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Mailboxes…'**
+  String get menuImportMailboxesDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Export as PDF…'**
+  String get menuExportAsPDFDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Print…'**
+  String get menuPrintDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete'**
+  String get menuComplete;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste as Quotation'**
+  String get menuPasteAsQuotation;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste and Match Style'**
+  String get menuPasteAndMatchStyle;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Append Selected Messages'**
+  String get menuAppendSelectedMessages;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Link…'**
+  String get menuAddLinkDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments'**
+  String get menuAttachments;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Always Send Windows-Friendly Attachments'**
+  String get menuAlwaysSendWindowsFriendlyAttachments;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Always Insert Attachments at End of Message'**
+  String get menuAlwaysInsertAttachmentsAtEndOfMessage;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Include Attachments With Replies'**
+  String get menuIncludeAttachmentsWithReplies;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Always'**
+  String get menuAlways;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Never'**
+  String get menuNever;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'When Adding Recipients'**
+  String get menuWhenAddingRecipients;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask'**
+  String get menuAsk;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Find'**
+  String get menuFind;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Mailbox Search'**
+  String get menuMailboxSearch;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Find…'**
+  String get menuFindDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Find Next'**
+  String get menuFindNext;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Find Previous'**
+  String get menuFindPrevious;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Selection for Find'**
+  String get menuUseSelectionForFind;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to Selection'**
+  String get menuJumpToSelection;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to Top'**
+  String get menuJumpToTop;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing Tools'**
+  String get menuWritingTools;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Writing Tools'**
+  String get menuShowWritingTools;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Proofread'**
+  String get menuProofread;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Rewrite'**
+  String get menuRewrite;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Friendly'**
+  String get menuMakeFriendly;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Professional'**
+  String get menuMakeProfessional;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Concise'**
+  String get menuMakeConcise;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize'**
+  String get menuSummarize;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Key Points'**
+  String get menuCreateKeyPoints;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Make List'**
+  String get menuMakeList;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Table'**
+  String get menuMakeTable;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Compose…'**
+  String get menuComposeDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Spelling and Grammar'**
+  String get menuSpellingAndGrammar;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Spelling and Grammar'**
+  String get menuShowSpellingAndGrammar;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Check Document Now'**
+  String get menuCheckDocumentNow;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Check Spelling'**
+  String get menuCheckSpelling;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'While Typing'**
+  String get menuWhileTyping;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Before Sending'**
+  String get menuBeforeSending;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Check Grammar with Spelling'**
+  String get menuCheckGrammarWithSpelling;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Correct Spelling Automatically'**
+  String get menuCorrectSpellingAutomatically;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Substitutions'**
+  String get menuSubstitutions;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Substitutions'**
+  String get menuShowSubstitutions;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Copy/Paste'**
+  String get menuSmartCopyPaste;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Quotes'**
+  String get menuSmartQuotes;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Lists'**
+  String get menuSmartLists;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Dashes'**
+  String get menuSmartDashes;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Links'**
+  String get menuSmartLinks;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Text Replacement'**
+  String get menuTextReplacement;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Transformations'**
+  String get menuTransformations;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Upper Case'**
+  String get menuMakeUpperCase;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Lower Case'**
+  String get menuMakeLowerCase;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Capitalize'**
+  String get menuCapitalize;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech'**
+  String get menuSpeech;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Speaking'**
+  String get menuStartSpeaking;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop Speaking'**
+  String get menuStopSpeaking;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'AutoFill'**
+  String get menuAutoFill;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact…'**
+  String get menuContactDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Passwords…'**
+  String get menuPasswordsDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Credit Card…'**
+  String get menuCreditCardDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Dictation…'**
+  String get menuStartDictationDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji & Symbols'**
+  String get menuEmojiSymbols;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Tab Bar'**
+  String get menuShowTabBar;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show All Tabs'**
+  String get menuShowAllTabs;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter'**
+  String get menuFilter;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Message Filter'**
+  String get menuEnableMessageFilter;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Include:'**
+  String get menuInclude;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread'**
+  String get menuUnread;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Flagged'**
+  String get menuFlagged;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Addressed:'**
+  String get menuAddressed;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'To: Me'**
+  String get menuToMe;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Cc: Me'**
+  String get menuCcMe;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Only Mail with Attachments'**
+  String get menuOnlyMailWithAttachments;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Only from VIP'**
+  String get menuOnlyFromVIP;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort By'**
+  String get menuSortBy;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get menuDate;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Date Sent'**
+  String get menuDateSent;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Remind Me'**
+  String get menuRemindMe;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Later'**
+  String get menuSendLater;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Flags'**
+  String get menuFlags;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'From'**
+  String get menuFrom;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get menuSize;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Subject'**
+  String get menuSubject;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'To'**
+  String get menuTo;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread'**
+  String get menuSortUnread;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest Message on Top'**
+  String get menuOldestMessageOnTop;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Newest Message on Top'**
+  String get menuNewestMessageOnTop;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Column Layout'**
+  String get menuUseColumnLayout;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Bottom Preview'**
+  String get menuShowBottomPreview;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Date and Time'**
+  String get menuShowDateAndTime;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show To/Cc Label'**
+  String get menuShowToCcLabel;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Message Size'**
+  String get menuShowMessageSize;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Contact Photo'**
+  String get menuShowContactPhoto;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Mail Categories'**
+  String get menuShowMailCategories;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Priority Messages'**
+  String get menuShowPriorityMessages;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'About Categories…'**
+  String get menuAboutCategoriesDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Highlight Conversations'**
+  String get menuHighlightConversations;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Organize by Conversation'**
+  String get menuOrganizeByConversation;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand All Conversations'**
+  String get menuExpandAllConversations;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse All Conversations'**
+  String get menuCollapseAllConversations;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Cc Address Field'**
+  String get menuCcAddressField;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Bcc Address Field'**
+  String get menuBccAddressField;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply-To Address Field'**
+  String get menuReplyToAddressField;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Priority Field'**
+  String get menuPriorityField;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show with Light Background'**
+  String get menuShowWithLightBackground;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'All Headers'**
+  String get menuAllHeaders;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Raw Source'**
+  String get menuRawSource;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Related Messages'**
+  String get menuHideRelatedMessages;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Sidebar'**
+  String get menuHideSidebar;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Sidebar'**
+  String get menuShowSidebar;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Toolbar'**
+  String get menuHideToolbar;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize Toolbar…'**
+  String get menuCustomizeToolbarDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Favorites Bar'**
+  String get menuShowFavoritesBar;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Get New Mail'**
+  String get menuGetNewMail;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark All Messages as Read'**
+  String get menuMarkAllMessagesAsRead;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Erase Deleted Items'**
+  String get menuEraseDeletedItems;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'In All Accounts…'**
+  String get menuInAllAccountsDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'In All Accounts'**
+  String get menuInAllAccounts;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Erase Junk Mail'**
+  String get menuEraseJunkMail;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'New Mailbox…'**
+  String get menuNewMailboxDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Favorite Mailbox…'**
+  String get menuAddFavoriteMailboxDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'New Smart Mailbox…'**
+  String get menuNewSmartMailboxDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Smart Mailbox…'**
+  String get menuEditSmartMailboxDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate Smart Mailbox'**
+  String get menuDuplicateSmartMailbox;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'New Smart Mailbox Folder…'**
+  String get menuNewSmartMailboxFolderDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename Mailbox…'**
+  String get menuRenameMailboxDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Mailbox…'**
+  String get menuDeleteMailboxDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Export Mailbox…'**
+  String get menuExportMailboxDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Favorite Mailbox'**
+  String get menuGoToFavoriteMailbox;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Favorite Mailbox'**
+  String get menuMoveToFavoriteMailbox;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Previous Mailbox'**
+  String get menuGoToPreviousMailbox;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Next Mailbox'**
+  String get menuGoToNextMailbox;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild'**
+  String get menuRebuild;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Again'**
+  String get menuSendAgain;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get menuSend;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Send 21:00 Tonight'**
+  String get menuSend2100Tonight;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Send 08:00 Tomorrow'**
+  String get menuSend0800Tomorrow;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Later…'**
+  String get menuSendLaterDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward as Attachment'**
+  String get menuForwardAsAttachment;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Redirect'**
+  String get menuRedirect;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Remind Me in 1 Hour'**
+  String get menuRemindMeIn1Hour;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Remind Me Tonight'**
+  String get menuRemindMeTonight;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Remind Me Tomorrow'**
+  String get menuRemindMeTomorrow;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Remind Me Later…'**
+  String get menuRemindMeLaterDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Reminder'**
+  String get menuClearReminder;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Ignore Follow Up'**
+  String get menuIgnoreFollowUp;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as Unread'**
+  String get menuMarkAsUnread;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as Read'**
+  String get menuMarkAsRead;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Junk'**
+  String get menuMoveToJunk;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute'**
+  String get menuMute;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute'**
+  String get menuUnmute;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Flag'**
+  String get menuFlag;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Orange'**
+  String get menuOrange;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Red'**
+  String get menuRed;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Purple'**
+  String get menuPurple;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Blue'**
+  String get menuBlue;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Yellow'**
+  String get menuYellow;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Green'**
+  String get menuGreen;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Gray'**
+  String get menuGray;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Flag'**
+  String get menuClearFlag;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Flag'**
+  String get menuToggleFlag;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Set Priority'**
+  String get menuSetPriority;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Low'**
+  String get menuLow;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get menuNormal;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'High'**
+  String get menuHigh;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Predicted Mailbox'**
+  String get menuMoveToPredictedMailbox;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to'**
+  String get menuMoveTo;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy to'**
+  String get menuCopyTo;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Again'**
+  String get menuMoveAgain;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply Rules'**
+  String get menuApplyRules;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Sender to Contacts'**
+  String get menuAddSenderToContacts;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Categorize Sender'**
+  String get menuCategorizeSender;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically'**
+  String get menuAutomatically;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Always Categorize as'**
+  String get menuAlwaysCategorizeAs;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Primary'**
+  String get menuPrimary;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Transactions'**
+  String get menuTransactions;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get menuUpdates;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Promotions'**
+  String get menuPromotions;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Attachments'**
+  String get menuRemoveAttachments;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Fonts'**
+  String get menuShowFonts;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Colors'**
+  String get menuShowColors;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Lists'**
+  String get menuLists;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Bulleted List'**
+  String get menuInsertBulletedList;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Numbered List'**
+  String get menuInsertNumberedList;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove List Formatting'**
+  String get menuRemoveListFormatting;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Increase List Level'**
+  String get menuIncreaseListLevel;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Decrease List Level'**
+  String get menuDecreaseListLevel;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Convert to Numbered List'**
+  String get menuConvertToNumberedList;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Style'**
+  String get menuStyle;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Bold'**
+  String get menuBold;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Italic'**
+  String get menuItalic;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Underline'**
+  String get menuUnderline;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Outline'**
+  String get menuOutline;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Bigger'**
+  String get menuBigger;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Smaller'**
+  String get menuSmaller;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Style'**
+  String get menuCopyStyle;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste Style'**
+  String get menuPasteStyle;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Style'**
+  String get menuRemoveStyle;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Styles…'**
+  String get menuStylesDots;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Alignment'**
+  String get menuAlignment;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Align Left'**
+  String get menuAlignLeft;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Center'**
+  String get menuCenter;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Justify'**
+  String get menuJustify;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Align Right'**
+  String get menuAlignRight;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Float Left'**
+  String get menuFloatLeft;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Float Right'**
+  String get menuFloatRight;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Float'**
+  String get menuRemoveFloat;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing Direction'**
+  String get menuWritingDirection;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Paragraph'**
+  String get menuParagraph;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Selection'**
+  String get menuSelection;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get menuDefault;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Left to Right'**
+  String get menuLeftToRight;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Right to Left'**
+  String get menuRightToLeft;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Indentation'**
+  String get menuIndentation;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Increase'**
+  String get menuIncrease;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Decrease'**
+  String get menuDecrease;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Quote Level'**
+  String get menuQuoteLevel;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Rich Text'**
+  String get menuMakeRichText;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Plain Text'**
+  String get menuMakePlainText;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Message Viewer'**
+  String get menuMessageViewer;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo Browser'**
+  String get menuPhotoBrowser;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous Recipients'**
+  String get menuPreviousRecipients;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity'**
+  String get menuActivity;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection Doctor'**
+  String get menuConnectionDoctor;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'Mail Help'**
+  String get menuMailHelp;
+
+  /// Menu bar item.
+  ///
+  /// In en, this message translates to:
+  /// **'What’s New in Mail?'**
+  String get menuWhatsNewInMail;
+
+  /// Mailbox menu: fetch the new mail of one account.
+  ///
+  /// In en, this message translates to:
+  /// **'Synchronize “{account}”'**
+  String menuSynchronize(String account);
+
+  /// Message menu, Categorize Sender submenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Categorize all messages from “{sender}”'**
+  String menuCategorizeAll(String sender);
 }
 
 class _AppLocalizationsDelegate

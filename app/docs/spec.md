@@ -68,9 +68,57 @@ banner says so.
 | New message | ⌘N |
 | Reply / Reply all / Forward | ⌘R / ⌘⇧R / ⌘⇧F |
 | Delete (to the Trash; from the Trash, for good) | Delete, Backspace |
-| Search / end search | ⌘F / Escape |
+| Search / end search | ⌘F or ⌥⌘F / Escape |
 | Previous / next conversation | ↑ / ↓ |
-| Send / close the composer | ⌘⇧Enter / Escape |
+| Send / close the composer | ⌘⇧Enter or ⌘⇧D / Escape or ⌘W |
+
+## Menus
+
+Mail publishes nine menus to Silica's menu bar (silica-ui `SilicaMenuBar`, silica-desktop#175;
+`lib/src/menus.dart`), as measured in ML-01 (MENU-01): the app menu, File, Edit, View, Mailbox,
+Message, Format, Window and Help, with the measured items, separators and shortcuts. The ⌘
+shortcuts are the menu bar's. Items keep their place in every state; only the enabled state,
+the checkmarks and a few labels change. An item for a feature Mail does not have is shown
+grayed, never hidden and never wired to something else.
+
+Working items, by menu:
+
+- **Mail**: Accounts… and Add Account… (the account setup), Services, Hide, Hide Others, Show
+  All and Quit (the bar's).
+- **File**: New Message ⌘N; Close ⌘W (the composer while it is open, the window otherwise).
+- **Edit**: Undo, Redo, Cut, Copy, Paste and Select All act on the text field with the
+  keyboard (the composer, the search field); Delete ⌘⌫ deletes the selected message; Mailbox
+  Search ⌥⌘F and Find… ⌘F start the mailbox search (a search inside one message does not exist
+  yet).
+- **View**: Hide / Show Sidebar ⌃⌘S, Expand All and Collapse All Conversations, Enter Full
+  Screen. Sort By shows Date and Newest Message on Top checked, Organize by Conversation
+  checked: that is how the list always works.
+- **Mailbox**: Get New Mail ⇧⌘N and Synchronize "account" (sync), Mark All Messages as Read,
+  Go to Favorite Mailbox ⌘1 Inbox, ⌘2 Sent, Move to Favorite Mailbox ⌃⌘1 / ⌃⌘2 (of the
+  shown account), Go to Previous / Next Mailbox ⌃⌘[ / ⌃⌘] (the sidebar's order).
+- **Message**: in the viewer Reply ⌘R, Reply All ⇧⌘R, Forward ⇧⌘F, Mark as Unread / Mark as
+  Read ⇧⌘U, Move to Junk ⇧⌘J, Flag › Orange (the flag), Clear Flag and Toggle Flag ⇧⌘L,
+  Archive ⌃⌘A, Move to › (any mailbox of any account); with the composer open the first slot is
+  Send ⇧⌘D (grayed until there is a recipient) instead of Send Again, and the viewer's actions
+  are grayed.
+- **Window**: the bar's part (Minimize, Fill, Move & Resize, Full screen, Bring All to Front,
+  the list of windows) is added after Mail's own items, which therefore come first, not last
+  as measured (the bar owns the order).
+
+Grayed for now (features that do not exist): About and Settings; New Viewer Window, Open
+Message, Save, Save As, Attach Files, Save Attachments, Quick Look, Import and Export
+Mailboxes, Export as PDF, Print; Complete, Paste as Quotation, Add Link, the attachment
+preferences, Find Next / Previous, the writing, spelling, substitution, speech, AutoFill,
+dictation and emoji items; tabs, the message filter, sorting and layout choices, the
+categories and priority items, the Cc / Bcc / Reply-To / Priority fields, the message source
+and headers, the toolbar items; Erase Deleted Items and Junk, mailbox management, Rebuild;
+Send Again, Send Later, Forward as Attachment, Redirect, reminders, Mute, the other flag
+colours, Set Priority, Move to Predicted Mailbox, Copy to, Move Again, Apply Rules, Add Sender
+to Contacts, Categorize Sender, Remove Attachments; the whole Format menu; Message Viewer,
+Photo Browser, Previous Recipients, Activity, Connection Doctor; Mail Help and What's New. The
+alternate items (⌥ variants such as Quit and Keep Windows or Close All) are not offered, and
+neither are the insert-from-device item (a feature of another system) and the favourites' per
+account children.
 
 ## Not yet
 
