@@ -481,6 +481,54 @@ void main() {
     expect(find.byKey(const ValueKey('sidebar')), findsOneWidget);
   });
 
+  testWidgets('the sidebar scrolls under its own bar with the sidebar button '
+      '(mail#7)', (tester) async {
+    await pump(tester);
+    expect(
+      tester.getRect(find.byKey(const ValueKey('sidebar bar'))),
+      const Rect.fromLTWH(0, 0, MailMetrics.sidebarWidth, toolbarHeight),
+    );
+    final toggle = find.byKey(const ValueKey('sidebar toggle'));
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('sidebar bar')),
+        matching: toggle,
+      ),
+      findsOneWidget,
+    );
+    final list = find.descendant(
+      of: find.byKey(const ValueKey('sidebar')),
+      matching: find.byType(Scrollable),
+    );
+    // The list fills the sidebar from the top; its first row starts below the bar.
+    expect(tester.getRect(list).top, 0);
+    final scrollable = tester.state<ScrollableState>(list);
+    final first = tester.getTopLeft(
+      find.descendant(of: list, matching: find.byType(Text)).first,
+    );
+    expect(first.dy, greaterThanOrEqualTo(toolbarHeight));
+    // Scrolled, the rows pass under the bar while the button stays put.
+    final at = tester.getRect(toggle);
+    scrollable.position.jumpTo(
+      scrollable.position.maxScrollExtent.clamp(0, 20).toDouble(),
+    );
+    await tester.pump();
+    expect(tester.getRect(toggle), at);
+  });
+
+  testWidgets('no colour band: the list and the reader anchor the toolbar '
+      'veil (silica-ui#87)', (tester) async {
+    await pump(tester);
+    final bar = tester.widget<ScrollUnderToolbar>(
+      find.byType(ScrollUnderToolbar),
+    );
+    final columns = bar.columns!;
+    expect(columns.first.width, MailMetrics.listWidth);
+    expect(columns.last.width, isNull);
+    expect(columns.first.background, MailColors.light.content);
+    expect(columns.last.background, MailColors.light.reader);
+  });
+
   testWidgets('a subject suggestion searches the subject with a token', (
     tester,
   ) async {

@@ -552,29 +552,24 @@ class MailWindowState extends State<MailWindow> {
           color: colors.content,
           child: Stack(
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_sidebarShown)
-                    SizedBox(
-                      width: MailMetrics.sidebarWidth,
-                      child: _sidebar(colors),
-                    ),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        Positioned.fill(child: _content(colors)),
-                        if (_suggesting && _query.text.trim().isNotEmpty)
-                          Positioned(
-                            top: toolbarHeight - 4,
-                            right: 7,
-                            width: MailMetrics.searchFieldWidth,
-                            child: _suggestions(colors),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+              // The full-height sidebar with its own glass bar under the window buttons, the
+              // list and the reader under the toolbar (mail#7).
+              SidebarLayout(
+                width: MailMetrics.sidebarWidth,
+                shown: _sidebarShown ? 1 : 0,
+                sidebar: _sidebar(colors),
+                content: Stack(
+                  children: [
+                    Positioned.fill(child: _content(colors)),
+                    if (_suggesting && _query.text.trim().isNotEmpty)
+                      Positioned(
+                        top: toolbarHeight - 4,
+                        right: 7,
+                        width: MailMetrics.searchFieldWidth,
+                        child: _suggestions(colors),
+                      ),
+                  ],
+                ),
               ),
               if (_compose case final request?)
                 Positioned.fill(
@@ -624,6 +619,18 @@ class MailWindowState extends State<MailWindow> {
             active: _active,
             veil: veil,
             showLine: false,
+            // At rest the bar shows the list and the reader in their own colours, without a
+            // band (silica-ui#87). Under the banner the band keeps the plain veil.
+            columns: _hasBanner
+                ? null
+                : [
+                    ToolbarVeilColumn(
+                      colors.content,
+                      width: MailMetrics.listWidth,
+                    ),
+                    ToolbarVeilColumn(colors.separator, width: 1),
+                    ToolbarVeilColumn(colors.reader),
+                  ],
             toolbar: _toolbar(colors),
             header: _hasBanner ? _bannerBar(colors) : null,
             headerHeight: _hasBanner ? MailMetrics.bannerHeight : 0,
@@ -743,24 +750,7 @@ class MailWindowState extends State<MailWindow> {
   );
 
   Widget _sidebar(MailColors colors) {
-    final children = <Widget>[
-      // The top of the sidebar, under the window buttons, moves the window.
-      SizedBox(
-        height: toolbarHeight,
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: WindowDragArea(child: SizedBox.expand()),
-            ),
-            Positioned(
-              left: MailMetrics.sidebarToggleX,
-              top: (toolbarHeight - toolbarCapsuleHeight) / 2,
-              child: _sidebarToggle(),
-            ),
-          ],
-        ),
-      ),
-    ];
+    final children = <Widget>[];
     var first = true;
     for (final account in _accounts) {
       children.add(
@@ -863,10 +853,22 @@ class MailWindowState extends State<MailWindow> {
         ),
       );
     }
-    return ColoredBox(
+    // The sidebar's own bar, under the window buttons, carries the sidebar button and moves the
+    // window; the mailboxes start below it and scroll under it (mail#7).
+    return SidebarScrollUnderBar(
       key: const ValueKey('sidebar'),
-      color: colors.sidebar,
-      child: ListView(padding: EdgeInsets.zero, children: children),
+      background: colors.sidebar,
+      bar: Stack(
+        children: [
+          Positioned(
+            left: MailMetrics.sidebarToggleX,
+            top: (toolbarHeight - toolbarCapsuleHeight) / 2,
+            child: _sidebarToggle(),
+          ),
+        ],
+      ),
+      body: (context, padding) =>
+          ListView(padding: padding, children: children),
     );
   }
 
