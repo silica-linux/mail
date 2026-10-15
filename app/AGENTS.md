@@ -25,7 +25,7 @@ never crash, everything is a command, measured parity, English everywhere). On t
 - Geometry and colours live in `lib/src/style.dart`, measured in ML-01; unmeasured values are
   marked PROVISIONAL there.
 - The toolbar is an overlay above the content, which starts at a top inset: the shared glass
-  toolbar of silica_ui (silica-linux/silica-ui#2) will let the lists scroll under it.
+  toolbar of silica_ui (silica-os/silica-ui#2) will let the lists scroll under it.
 
 ## Work
 

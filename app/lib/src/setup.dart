@@ -3,7 +3,7 @@
 // password. When nothing is found the servers are entered by hand. The password goes to the
 // engine once, which keeps it in the Secret Service; the app never stores it.
 //
-// Providers that sign in only through their own page (OAuth, silica-linux/mail#3) are said so:
+// Providers that sign in only through their own page (OAuth, silica-os/mail#3) are said so:
 // Google takes an app password meanwhile, Microsoft can't be added yet.
 
 import 'package:flutter/services.dart';

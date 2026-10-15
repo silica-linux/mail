@@ -310,10 +310,10 @@ enum SignInProvider {
   /// A plain IMAP/SMTP password works.
   password,
 
-  /// Google: an app password works; sign-in with Google is silica-linux/mail#3.
+  /// Google: an app password works; sign-in with Google is silica-os/mail#3.
   google,
 
-  /// Microsoft: only sign-in with Microsoft works, not supported yet (silica-linux/mail#3).
+  /// Microsoft: only sign-in with Microsoft works, not supported yet (silica-os/mail#3).
   microsoft,
 }
 

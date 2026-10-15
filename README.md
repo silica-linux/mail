@@ -22,7 +22,7 @@
 | Part | What it does |
 | --- | --- |
 | `engine/` | `silica-mail-engine`, a Rust service on the session bus (`dev.frascella.Mail1`): IMAP sync, SMTP sending, offline store, search index, credentials in the Secret Service keyring |
-| `app/` | the Flutter app on [`silica_ui`](https://github.com/silica-linux/silica-ui), talking to the engine over D-Bus |
+| `app/` | the Flutter app on [`silica_ui`](https://github.com/silica-os/silica-ui), talking to the engine over D-Bus |
 
 The engine's D-Bus API is documented in [`engine/docs/dbus-api.md`](engine/docs/dbus-api.md).
 Its integration tests run it against a private bus, a fake keyring and fake IMAP and SMTP

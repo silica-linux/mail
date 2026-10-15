@@ -446,7 +446,7 @@ class _ComposeSheetState extends State<ComposeSheet>
                 opacity: 1 - close,
                 child: ColoredBox(
                   // PROVISIONAL: the dim behind the panel (the reference composer is its
-                  // own window, silica-linux/mail issue for a separate window).
+                  // own window, silica-os/mail issue for a separate window).
                   color: Color.fromRGBO(0, 0, 0, _lifting == null ? 0.2 : 0),
                   child: Center(child: panel),
                 ),

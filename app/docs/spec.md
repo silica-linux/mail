@@ -43,7 +43,7 @@ banner says so.
 - **Toolbar** (52 pt, unified with the window): mailbox title and message count; New Message;
   Reply, Reply All, Forward; Archive, Delete, Flag; Search (the capsule becomes a field). Inactive
   window: dim title and glyphs. The toolbar is an overlay; the content starts under it, ready for
-  the shared glass toolbar (silica-linux/silica-ui#2).
+  the shared glass toolbar (silica-os/silica-ui#2).
 - **List** (360 pt): one row per conversation, newest first: sender (semibold when unread),
   date (time today, Yesterday, then the date), count of messages in the conversation, flag and
   attachment marks, subject, two lines of preview, an unread dot on the left. Selection fill:
