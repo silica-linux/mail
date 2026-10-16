@@ -831,6 +831,8 @@ class MailWindowState extends State<MailWindow> {
   Widget _sidebarToolbar() => WindowDragArea(
     child: AmalfiToolbar.sidebarSection(
       key: const ValueKey('sidebar bar'),
+      surface: AmalfiToolbarSurface.blur,
+      edge: true,
       children: [_controlsSlot, const AmalfiSpacerPiece(), _sidebarToggle()],
     ),
   );
@@ -1166,10 +1168,12 @@ class MailWindowState extends State<MailWindow> {
         ),
       );
     }
-    // The panel runs up behind the sidebar's section: its first header sits 8 below it.
+    // The panel runs up behind the blur strip of the sidebar's section: its first header sits
+    // 8 below the strip and the rows scroll under it.
     return AmalfiSidebarPanel(
       key: const ValueKey('sidebar'),
-      padding: const EdgeInsets.fromLTRB(12, MailMetrics.toolbar + 8, 12, 0),
+      topInset: MailMetrics.toolbar,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       children: children,
     );
   }
