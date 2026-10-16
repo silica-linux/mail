@@ -37,19 +37,33 @@ banner says so.
 
 ## Window
 
-- **Sidebar** (220 pt, provisional): the top 52 pt moves the window; then, per account, a heading
-  and its mailboxes (role names translated: Inbox, Drafts, Sent, Archive, Junk, Trash; other
-  folders by their server name) with the unread count.
-- **Toolbar** (52 pt, unified with the window): mailbox title and message count; New Message;
-  Reply, Reply All, Forward; Archive, Delete, Flag; Search (the capsule becomes a field). Inactive
-  window: dim title and glyphs. The toolbar is an overlay; the content starts under it, ready for
-  the shared glass toolbar (silica-os/silica-ui#2).
-- **List** (360 pt): one row per conversation, newest first: sender (semibold when unread),
-  date (time today, Yesterday, then the date), count of messages in the conversation, flag and
-  attachment marks, subject, two lines of preview, an unread dot on the left. Selection fill:
-  accent when the window is active, grey when inactive.
-- **Reader**: the whole conversation, newest first; for each message the sender, date and time,
-  subject, To and Cc, the body and the attachments (click: saved in Downloads by the engine).
+Layout and look are Amalfi's (kit page `App · Mail`, masters `Apps/Mail/*`; the measured notes in
+`docs/spec` give behaviour and timing only). Three columns under a 52 pt flat toolbar split into
+sections: sidebar 240 · list 320 · reader.
+
+- **Sidebar** (240 pt, behind its own toolbar section with the window buttons and the sidebar
+  button): per account a header and its mailboxes (role names translated; other folders by their
+  server name) as 28 pt rows with the unread count in a badge. While searching it gains a Search
+  section with All Mailboxes and the result count.
+- **List toolbar section**: the mailbox title and its counts; a Filter button (All Messages,
+  Unread, Flagged) and a More menu (Get New Mail, Mark All Messages as Read).
+- **Reader toolbar section**: New Message; Reply, Reply All, Forward; Archive, Delete, Flag (lit
+  while the message is flagged); Search (200 wide, 240 with a scope token; a button when the
+  window is narrow). While searching only New Message and the field stay. Junk is in the Message
+  menu. Inactive window: dim title and glyphs.
+- **List**: 84 pt rows, one per conversation, newest first: sender (semibold), date (time today,
+  Yesterday, then the date), count of messages in the conversation, flag mark, subject, two lines
+  of preview, an unread dot on the left. Selection: accent capsule when the window is active,
+  neutral when inactive. A search groups the rows under Best Matches (sender or subject) and All
+  Results, with the matches highlighted.
+- **Reader**: the whole conversation, newest first, as cards: avatar with initials, sender,
+  subject, To and Cc, date and time, the body and the attachments (click: saved in Downloads by
+  the engine). Nothing selected: "No Message Selected".
+- **Composer** (832 × 720 panel over the window, a window of its own in
+  silica-os/mail#5): To and Cc as tokens, Subject, From (the account), the text. Closing a
+  changed message asks "Save this message as a draft?" (Save waits for drafts,
+  silica-os/mail#10). The format bar waits for rich text (silica-os/mail#9).
+- **Add Account**: a 528 × 416 sheet hanging from the toolbar.
 - Selecting a conversation marks its unread messages read.
 
 ## Safety
@@ -122,7 +136,8 @@ account children.
 
 ## Not yet
 
-- Measured layout (ML-01), glass toolbar (silica-ui#2).
+- Rich text composing and the format bar (silica-os/mail#9), drafts (silica-os/mail#10), a help
+  button in the Add Account sheet (silica-os/mail#11).
 - Moving messages to any mailbox by drag and drop, multiple selection, rules, signatures, rich
   text composing, attachments in the composer, `mailto:` links, notifications of new mail,
   OAuth2 accounts (mail#3).
