@@ -6,3 +6,13 @@ into this repository; the interface font (Inter, OFL 1.1) comes from `silica_ui`
 
 | File | Author | License | Source |
 | --- | --- | --- | --- |
+| `icon/background-dark.svg` | Silica project | CC BY-SA 4.0 | `silica-icons` `apps/mail` (branch `amalfi-icons`, 2713df9) |
+| `icon/background.svg` | Silica project | CC BY-SA 4.0 | `silica-icons` `apps/mail` (branch `amalfi-icons`, 2713df9) |
+| `icon/foreground-dark.svg` | Silica project | CC BY-SA 4.0 | `silica-icons` `apps/mail` (branch `amalfi-icons`, 2713df9) |
+| `icon/foreground.svg` | Silica project | CC BY-SA 4.0 | `silica-icons` `apps/mail` (branch `amalfi-icons`, 2713df9) |
+| `icon/icon-clear-dark.png` | Silica project | CC BY-SA 4.0 | `silica-icons` `apps/mail` (branch `amalfi-icons`, 2713df9) |
+| `icon/icon-clear.png` | Silica project | CC BY-SA 4.0 | `silica-icons` `apps/mail` (branch `amalfi-icons`, 2713df9) |
+| `icon/icon-dark.png` | Silica project | CC BY-SA 4.0 | `silica-icons` `apps/mail` (branch `amalfi-icons`, 2713df9) |
+| `icon/icon-tinted-dark.png` | Silica project | CC BY-SA 4.0 | `silica-icons` `apps/mail` (branch `amalfi-icons`, 2713df9) |
+| `icon/icon-tinted.png` | Silica project | CC BY-SA 4.0 | `silica-icons` `apps/mail` (branch `amalfi-icons`, 2713df9) |
+| `icon/icon.png` | Silica project | CC BY-SA 4.0 | `silica-icons` `apps/mail` (branch `amalfi-icons`, 2713df9) |
