@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:silica_mail/src/l10n.dart';
 import 'package:silica_mail/src/service.dart';
 import 'package:silica_mail/src/window.dart';
+import 'support.dart';
 import 'package:silica_ui/silica_ui.dart' show SilicaMenuDelegate;
 
 typedef Item = Map<Object?, Object?>;
@@ -37,10 +38,7 @@ void main() {
     await tester.pumpWidget(
       AppLocalizationsScope(
         locale: locale,
-        child: Directionality(
-          textDirection: TextDirection.ltr,
-          child: MailWindow(service: fake, now: () => now),
-        ),
+        child: testApp(MailWindow(service: fake, now: () => now)),
       ),
     );
     await tester.pumpAndSettle();
@@ -369,15 +367,9 @@ void main() {
     // ⌘2 goes to Sent, the next mailbox follows the sidebar.
     expect(item('Sent', menu: 'Mailbox')['shortcut'], isNotNull);
     await choose(tester, 'Go to Next Mailbox');
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
-      isNot('Inbox'),
-    );
+    expect(titleOf(tester), isNot('Inbox'));
     await choose(tester, 'Go to Previous Mailbox');
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
-      'Inbox',
-    );
+    expect(titleOf(tester), 'Inbox');
   });
 
   testWidgets(

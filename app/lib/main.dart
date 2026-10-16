@@ -13,7 +13,7 @@ import 'src/window.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // The toolbar is unified with the window: Ossido draws only the window buttons.
-  SilicaWindow.setFullSizeContent(toolbarHeight).ignore();
+  SilicaWindow.setFullSizeContent(AmalfiToolbarMetrics.toolbarHeight).ignore();
   setMinimumSize().ignore();
   final connection = await connect(Platform.environment);
   // Mail keeps running when its window closes; a reopen shows the main window again on the
@@ -21,14 +21,20 @@ Future<void> main() async {
   final lastMailbox = ValueNotifier<String?>(null);
   runApp(
     AppLocalizationsScope(
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: SilicaAppWindow(
+      // WidgetsApp gives the overlay (menus, tooltips, popovers) and the text-editing
+      // shortcuts the Amalfi controls need.
+      child: WidgetsApp(
+        color: AmalfiColors.light.accentAmalfi,
+        debugShowCheckedModeBanner: false,
+        pageRouteBuilder: <T>(settings, builder) => PageRouteBuilder<T>(
+          settings: settings,
+          pageBuilder: (context, _, _) => builder(context),
+        ),
+        home: SilicaAppWindow(
           builder: (context) => MailWindow(
             service: connection.service,
             engineError: connection.error,
             sampleData: connection.sample,
-            iconsDir: Platform.environment['SILICA_ICONS_DIR'],
             lastMailbox: lastMailbox,
           ),
         ),
@@ -37,7 +43,7 @@ Future<void> main() async {
   );
 }
 
-/// The smallest window (ML-01).
+/// The smallest window (see [MailMetrics.minimumWindow]).
 Future<void> setMinimumSize() =>
     SilicaWindow.setSizeLimits(min: MailMetrics.minimumWindow);
 

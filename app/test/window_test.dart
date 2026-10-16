@@ -7,6 +7,7 @@ import 'package:silica_mail/src/l10n.dart';
 import 'package:silica_mail/src/model.dart';
 import 'package:silica_mail/src/service.dart';
 import 'package:silica_mail/src/style.dart';
+import 'support.dart';
 import 'package:silica_mail/src/window.dart';
 
 final DateTime now = DateTime(2026, 10, 14, 15, 30);
@@ -26,9 +27,8 @@ Future<FakeMailService> pump(
   await tester.pumpWidget(
     AppLocalizationsScope(
       locale: locale,
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: MailWindow(
+      child: testApp(
+        MailWindow(
           service: fake,
           now: () => now,
           openUrl: opened?.add,
@@ -54,20 +54,21 @@ void main() {
     tester,
   ) async {
     await pump(tester);
-    expect(find.byKey(const ValueKey('title')), findsOneWidget);
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
-      'Inbox',
-    );
+    expect(find.byType(AmalfiTitlePiece), findsOneWidget);
+    expect(titleOf(tester), 'Inbox');
     // 20 messages in 10 threads (t0…t9); the subtitle counts messages and unread ones.
-    final subtitle = tester
-        .widget<Text>(find.byKey(const ValueKey('subtitle')))
-        .data!;
+    final subtitle = subtitleOf(tester);
     expect(subtitle, startsWith('20 messages'));
     expect(find.byKey(const ValueKey('unread dot m0')), findsOneWidget);
     expect(find.byKey(const ValueKey('no selection')), findsOneWidget);
     // The unread count of the inbox in the sidebar.
-    expect(find.byKey(const ValueKey('unread inbox')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('mailbox inbox')),
+        matching: find.byType(AmalfiSidebarBadge),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('selecting opens the conversation and marks it read', (
@@ -121,22 +122,13 @@ void main() {
     await tester.enterText(find.byType(EditableText), 'lunch');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
-      'Searching',
-    );
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('subtitle'))).data,
-      startsWith('All Mailboxes, '),
-    );
+    expect(titleOf(tester), 'Searching');
+    expect(subtitleOf(tester), startsWith('All Mailboxes, '));
     expect(find.text('Lunch on Friday?'), findsWidgets);
     expect(find.text('Notes from Tuesday'), findsNothing);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
-      'Inbox',
-    );
+    expect(titleOf(tester), 'Inbox');
   });
 
   testWidgets('reply is prefilled and sends through the engine', (
@@ -144,13 +136,23 @@ void main() {
   ) async {
     final fake = await pump(tester);
     await tapRow(tester, 'm2');
-    await tester.tap(find.byKey(const ValueKey('reply')));
+    await tapSegment(tester, 'reply group', 0);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('composer')), findsOneWidget);
-    final to = tester.widget<EditableText>(
-      find.byKey(const ValueKey('compose to')),
+    // The recipient is a token, the field after it is empty.
+    expect(
+      tester
+          .widget<AmalfiToken>(find.byKey(const ValueKey('compose to token 0')))
+          .label,
+      'Lena Fischer',
     );
-    expect(to.controller.text, 'Lena Fischer <lena@example.org>');
+    expect(
+      tester
+          .widget<EditableText>(find.byKey(const ValueKey('compose to')))
+          .controller
+          .text,
+      isEmpty,
+    );
     final subject = tester.widget<EditableText>(
       find.byKey(const ValueKey('compose subject')),
     );
@@ -167,14 +169,14 @@ void main() {
     expect(fake.sent.single.inReplyTo, isNotNull);
   });
 
-  testWidgets('the composer is 836 × 779 and Send waits for a recipient', (
+  testWidgets('the composer is 832 × 720 and Send waits for a recipient', (
     tester,
   ) async {
     await pump(tester);
     await tester.tap(find.byKey(const ValueKey('compose')));
     await tester.pumpAndSettle();
     final panel = find.byKey(const ValueKey('composer panel'));
-    expect(tester.getSize(panel), const Size(836, 779));
+    expect(tester.getSize(panel), const Size(832, 720));
     double sendOpacity() => tester
         .widget<Opacity>(
           find.descendant(
@@ -183,7 +185,7 @@ void main() {
           ),
         )
         .opacity;
-    expect(sendOpacity(), 0.4);
+    expect(sendOpacity(), 0.35);
     await tester.enterText(
       find.byKey(const ValueKey('compose to')),
       'sam@example.net',
@@ -207,7 +209,7 @@ void main() {
   ) async {
     final fake = await pump(tester);
     await tapRow(tester, 'm3');
-    await tester.tap(find.byKey(const ValueKey('delete')));
+    await tapSegment(tester, 'triage group', 1);
     await tester.pump();
     await tester.pump();
     final trash = await fake.listMessages(const ListQuery('trash'));
@@ -283,7 +285,12 @@ void main() {
     // The usual names are proposed.
     expect(
       tester
-          .widget<EditableText>(find.byKey(const ValueKey('setup imap host')))
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(const ValueKey('setup imap host')),
+              matching: find.byType(EditableText),
+            ),
+          )
           .controller
           .text,
       'imap.small.example',
@@ -402,10 +409,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('engine retry')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('engine unavailable')), findsNothing);
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
-      'Inbox',
-    );
+    expect(titleOf(tester), 'Inbox');
   });
 
   testWidgets('sample data is labelled as such', (tester) async {
@@ -420,36 +424,27 @@ void main() {
 
   testWidgets('Italian: mailboxes and texts in Italian', (tester) async {
     await pump(tester, locale: const Locale('it'));
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
-      'In arrivo',
-    );
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('subtitle'))).data,
-      startsWith('20 messaggi'),
-    );
+    expect(titleOf(tester), 'In arrivo');
+    expect(subtitleOf(tester), startsWith('20 messaggi'));
     expect(find.text('Nessun messaggio scelto'), findsOneWidget);
     expect(find.text('Cestino'), findsOneWidget);
   });
 
-  testWidgets('list rows follow ML-01: 80 pt rows in a 325 pt list', (
+  testWidgets('list rows follow the kit: 84 pt rows in a 320 pt list', (
     tester,
   ) async {
     await pump(tester);
-    expect(tester.getSize(find.byKey(const ValueKey('row m0'))).height, 80);
-    expect(tester.getSize(find.byKey(const ValueKey('sidebar'))).width, 208);
+    expect(tester.getSize(find.byKey(const ValueKey('row m0'))).height, 84);
+    expect(tester.getSize(find.byKey(const ValueKey('sidebar'))).width, 240);
     expect(
       tester.getSize(find.byKey(const ValueKey('message list'))).width,
-      325,
+      320,
     );
-    // ML-01b: 8 pt, centred 12.5 pt before the sender, on the sender's line.
+    // Apps/Mail/List Row/Unread: the dot is 8 across at x 12, y 12 of the row.
     final dot = find.byKey(const ValueKey('unread dot m0'));
     expect(tester.getSize(dot), const Size(8, 8));
     final row = tester.getTopLeft(find.byKey(const ValueKey('row m0')));
-    expect(
-      tester.getCenter(dot).dx,
-      closeTo(row.dx + MailMetrics.cellX + MailMetrics.senderX - 12.5, 0.01),
-    );
+    expect(tester.getTopLeft(dot) - row, const Offset(12, 12));
   });
 
   testWidgets('a thread expands with Right and collapses with Left', (
@@ -461,7 +456,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('thread block m0')), findsOneWidget);
-    expect(tester.getSize(find.byKey(const ValueKey('row m10'))).height, 45);
+    expect(tester.getSize(find.byKey(const ValueKey('row m10'))).height, 44);
     // The child opens only its message.
     await tapRow(tester, 'm10');
     expect(find.byKey(const ValueKey('subject m10')), findsOneWidget);
@@ -481,52 +476,29 @@ void main() {
     expect(find.byKey(const ValueKey('sidebar')), findsOneWidget);
   });
 
-  testWidgets('the sidebar scrolls under its own bar with the sidebar button '
-      '(mail#7)', (tester) async {
+  testWidgets('the sidebar runs up behind its own section, with the sidebar '
+      'button (mail#7)', (tester) async {
     await pump(tester);
+    // Apps/Mail/Toolbar Sidebar: 240 × 52, the button 40 wide at x 192 (the glass
+    // button itself 32 × 32 at x 196, y 10).
     expect(
       tester.getRect(find.byKey(const ValueKey('sidebar bar'))),
-      const Rect.fromLTWH(0, 0, MailMetrics.sidebarWidth, toolbarHeight),
+      const Rect.fromLTWH(0, 0, MailMetrics.sidebarWidth, 52),
     );
-    final toggle = find.byKey(const ValueKey('sidebar toggle'));
     expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('sidebar bar')),
-        matching: toggle,
-      ),
-      findsOneWidget,
+      tester.getRect(find.byKey(const ValueKey('sidebar toggle'))),
+      const Rect.fromLTWH(196, 10, 32, 32),
     );
-    final list = find.descendant(
-      of: find.byKey(const ValueKey('sidebar')),
-      matching: find.byType(Scrollable),
-    );
-    // The list fills the sidebar from the top; its first row starts below the bar.
-    expect(tester.getRect(list).top, 0);
-    final scrollable = tester.state<ScrollableState>(list);
-    final first = tester.getTopLeft(
-      find.descendant(of: list, matching: find.byType(Text)).first,
-    );
-    expect(first.dy, greaterThanOrEqualTo(toolbarHeight));
-    // Scrolled, the rows pass under the bar while the button stays put.
-    final at = tester.getRect(toggle);
-    scrollable.position.jumpTo(
-      scrollable.position.maxScrollExtent.clamp(0, 20).toDouble(),
-    );
-    await tester.pump();
-    expect(tester.getRect(toggle), at);
-  });
-
-  testWidgets('no colour band: the list and the reader anchor the toolbar '
-      'veil (silica-ui#87)', (tester) async {
-    await pump(tester);
-    final bar = tester.widget<ScrollUnderToolbar>(
-      find.byType(ScrollUnderToolbar),
-    );
-    final columns = bar.columns!;
-    expect(columns.first.width, MailMetrics.listWidth);
-    expect(columns.last.width, isNull);
-    expect(columns.first.background, MailColors.light.content);
-    expect(columns.last.background, MailColors.light.reader);
+    // Apps/Mail/Sidebar: full height, the first header 60 from the top.
+    final panel = find.byKey(const ValueKey('sidebar'));
+    expect(tester.getRect(panel), const Rect.fromLTWH(0, 0, 240, 800));
+    // Rows are 216 × 28 at x 12 with a pitch of 32.
+    final first = tester.getRect(find.byKey(const ValueKey('mailbox inbox')));
+    final second = tester.getRect(find.byKey(const ValueKey('mailbox drafts')));
+    expect(first.left, 12);
+    expect(first.size, const Size(216, 28));
+    expect(first.top, 60 + 28 + 4);
+    expect(second.top - first.top, 32);
   });
 
   testWidgets('a subject suggestion searches the subject with a token', (
@@ -538,9 +510,9 @@ void main() {
     await tester.enterText(find.byType(EditableText), 'lunch');
     await tester.pump();
     expect(find.byKey(const ValueKey('search suggestions')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('suggest subject')));
+    await tester.tap(find.text('Subject contains: lunch'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('search token')), findsOneWidget);
+    expect(find.byType(AmalfiToken), findsOneWidget);
     expect(find.byKey(const ValueKey('search suggestions')), findsNothing);
     expect(find.text('Lunch on Friday?'), findsWidgets);
   });
@@ -590,58 +562,14 @@ void main() {
                       find.byKey(const ValueKey('selection m0')),
                     )
                     .decoration
-                as BoxDecoration)
+                as ShapeDecoration)
             .color!;
-    expect(selection(), const Color(0xFF464646));
+    expect(selection(), MailColors.dark.inactiveSelection);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
-    expect(selection(), const Color(0xFF026ED1));
+    // Amalfi dark accent.
+    expect(selection(), const Color(0xFF3D95FF));
     expect(MailFlagCheck.ok, isTrue);
-  });
-
-  testWidgets('the list scrolls under the glass toolbar; its line follows it', (
-    tester,
-  ) async {
-    await pump(tester);
-    tester.view.physicalSize = const Size(1280, 500);
-    await tester.pumpAndSettle();
-    expect(find.byType(ScrollUnderToolbar), findsOneWidget);
-    expect(find.byKey(const ValueKey('list line')), findsNothing);
-    expect(find.byKey(const ValueKey('reader line')), findsNothing);
-    // The first row starts below the 52 pt band...
-    expect(
-      tester.getRect(find.byKey(const ValueKey('row m0'))).top,
-      greaterThanOrEqualTo(toolbarHeight),
-    );
-    // ...and goes under it once the list scrolls; only the list's column gets the line.
-    await tester.drag(
-      find.byKey(const ValueKey('message list')),
-      const Offset(0, -60),
-    );
-    await tester.pumpAndSettle();
-    expect(
-      tester.getRect(find.byKey(const ValueKey('row m0'))).top,
-      lessThan(toolbarHeight),
-    );
-    expect(find.byKey(const ValueKey('list line')), findsOneWidget);
-    expect(find.byKey(const ValueKey('reader line')), findsNothing);
-    expect(
-      tester.getRect(find.byKey(const ValueKey('list line'))).top,
-      toolbarHeight,
-    );
-  });
-
-  testWidgets('an inactive window keeps the lines under the band', (
-    tester,
-  ) async {
-    await pump(tester);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-    await tester.pump();
-    expect(find.byKey(const ValueKey('list line')), findsOneWidget);
-    expect(find.byKey(const ValueKey('reader line')), findsOneWidget);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pump();
-    expect(find.byKey(const ValueKey('list line')), findsNothing);
   });
 
   testWidgets('the composer opens at 98.8 % and settles at 100 % (ML-01b)', (
@@ -653,12 +581,12 @@ void main() {
     final panel = find.byKey(const ValueKey('composer panel'));
     double width() =>
         tester.getBottomRight(panel).dx - tester.getTopLeft(panel).dx;
-    expect(width(), closeTo(836 * 0.988, 0.5));
+    expect(width(), closeTo(832 * 0.988, 0.5));
     await tester.pump(const Duration(milliseconds: 60));
-    expect(width(), greaterThan(836));
-    expect(width(), lessThanOrEqualTo(838.01));
+    expect(width(), greaterThan(832));
+    expect(width(), lessThanOrEqualTo(834.01));
     await tester.pumpAndSettle();
-    expect(width(), closeTo(836, 0.01));
+    expect(width(), closeTo(832, 0.01));
     expect(composerOpenScale(0), 0.988);
     expect(composerOpenScale(1), 1);
   });
@@ -732,9 +660,8 @@ void main() {
       await tester.pumpWidget(
         AppLocalizationsScope(
           locale: const Locale('en'),
-          child: Directionality(
-            textDirection: TextDirection.ltr,
-            child: SilicaAppWindow(
+          child: testApp(
+            SilicaAppWindow(
               builder: (context) => MailWindow(
                 service: fake,
                 now: () => now,
@@ -754,10 +681,7 @@ void main() {
       await SilicaApp.handle('reopen', {'windowless': true});
       await tester.pumpAndSettle();
       expect(find.byType(MailWindow), findsOneWidget);
-      expect(
-        tester.widget<Text>(find.byKey(const ValueKey('title'))).data,
-        'Sent',
-      );
+      expect(titleOf(tester), 'Sent');
     },
   );
 }

@@ -227,7 +227,7 @@ abstract class AppLocalizations {
   /// Reader with nothing selected.
   ///
   /// In en, this message translates to:
-  /// **'No message selected'**
+  /// **'No Message Selected'**
   String get noSelection;
 
   /// Date of a message received today, before the time when needed.
@@ -613,6 +613,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'name@example.com'**
   String get addressPlaceholder;
+
+  /// Toolbar button of the list: choose which messages to show.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter'**
+  String get filter;
+
+  /// Toolbar button of the list: a menu of further actions.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get more;
+
+  /// Filter menu item: show every message.
+  ///
+  /// In en, this message translates to:
+  /// **'All Messages'**
+  String get showAllMessages;
+
+  /// Filter menu item: show only unread messages.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread'**
+  String get showUnread;
+
+  /// Filter menu item: show only flagged messages.
+  ///
+  /// In en, this message translates to:
+  /// **'Flagged'**
+  String get showFlagged;
+
+  /// Header in the search results: messages with the text in the sender or the subject.
+  ///
+  /// In en, this message translates to:
+  /// **'Best Matches'**
+  String get bestMatches;
+
+  /// Header in the search results: the other matches.
+  ///
+  /// In en, this message translates to:
+  /// **'All Results'**
+  String get allResults;
+
+  /// Sidebar row while searching: the search covers every mailbox.
+  ///
+  /// In en, this message translates to:
+  /// **'All Mailboxes'**
+  String get allMailboxes;
+
+  /// Sidebar section header while searching.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get searchSection;
+
+  /// Alert when closing a changed message in the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Save this message as a draft?'**
+  String get saveDraftTitle;
+
+  /// Text of the alert when closing a changed message.
+  ///
+  /// In en, this message translates to:
+  /// **'The message has changes that have not been saved. You can keep it as a draft or discard it.'**
+  String get saveDraftMessage;
+
+  /// Alert button: keep the message as a draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
+  /// Alert button: discard the message.
+  ///
+  /// In en, this message translates to:
+  /// **'Don’t Save'**
+  String get dontSave;
+
+  /// Under the title of the account setup, first step.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your email address and Mail will find the settings.'**
+  String get addAccountHint;
 
   /// Menu bar item.
   ///

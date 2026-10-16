@@ -341,6 +341,50 @@ class AppLocalizationsIt extends AppLocalizations {
   String get addressPlaceholder => 'nome@example.com';
 
   @override
+  String get filter => 'Filtra';
+
+  @override
+  String get more => 'Altro';
+
+  @override
+  String get showAllMessages => 'Tutti i messaggi';
+
+  @override
+  String get showUnread => 'Non letti';
+
+  @override
+  String get showFlagged => 'Contrassegnati';
+
+  @override
+  String get bestMatches => 'Corrispondenze migliori';
+
+  @override
+  String get allResults => 'Tutti i risultati';
+
+  @override
+  String get allMailboxes => 'Tutte le caselle';
+
+  @override
+  String get searchSection => 'Ricerca';
+
+  @override
+  String get saveDraftTitle => 'Salvare questo messaggio come bozza?';
+
+  @override
+  String get saveDraftMessage =>
+      'Il messaggio ha modifiche non salvate. Puoi tenerlo come bozza o scartarlo.';
+
+  @override
+  String get save => 'Salva';
+
+  @override
+  String get dontSave => 'Non salvare';
+
+  @override
+  String get addAccountHint =>
+      'Inserisci il tuo indirizzo email e Mail troverà le impostazioni.';
+
+  @override
   String get menuFile => 'File';
 
   @override

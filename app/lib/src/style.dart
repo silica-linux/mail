@@ -1,96 +1,114 @@
 // Geometry and colours of the Mail window, in one place.
 //
-// Measured in silica-reference ML-01 (`mail.md`, 1 pt = 1 px). Values the session did not
-// measure are marked PROVISIONAL with the sibling they were taken from.
-
-import 'dart:io';
+// Layout and colours come from the Amalfi kit (`App · Mail`, masters `Apps/Mail/*`) and the
+// design system's `components.md`; the durations of the motion are the measured ones
+// (silica-reference ML-01, `mail.md`) and stay as they were.
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:silica_ui/silica_ui.dart';
 
-/// Geometry (pt).
+/// Geometry (pt). Every frame is on the 4 pt grid except where the kit centres text.
 abstract final class MailMetrics {
-  /// The smallest window (ML-01: the toolbar collapses into an overflow button there).
-  static const Size minimumWindow = Size(751, 200);
+  /// The smallest window: the sidebar (240), the list (320) and a reader wide enough for the
+  /// toolbar's compose button, reply group, triage group and the search button (the kit
+  /// draws the window at 1280 × 720).
+  static const Size minimumWindow = Size(888, 200);
 
-  // Sidebar (ML-01 › Sidebar).
-  static const double sidebarWidth = 208;
-  static const double sidebarRow = 32;
-  static const double sidebarHeading = 19;
-  static const double sidebarHeadingX = 17;
-  static const double sidebarIconX = 20;
-  static const double sidebarTitleX = 55;
+  // Window (kit `Apps/Mail/Inbox`: sidebar 240 · list 320 · reader 720 at 1280).
+  static const double toolbar = AmalfiToolbarMetrics.toolbarHeight;
+  static const double sidebarWidth = AmalfiWindowMetrics.sidebarWidth;
+  static const double listWidth = 320;
 
-  /// The unread count ends 15 pt before the sidebar edge (x 193 of 208).
-  static const double sidebarCountEnd = 15;
+  /// Below this reader width the toolbar's search field becomes a button: compose 40, reply
+  /// group 104, triage group 104, field 200 (240 with a token) and the section's padding.
+  static const double searchFieldMinReader = 484;
 
-  /// The selected mailbox: a rounded rectangle inset ~8 pt (radius PROVISIONAL, from the list).
-  static const double sidebarSelectionInset = 8;
-  static const double sidebarSelectionRadius = 6;
+  // Message list (kit `Apps/Mail/List Row/*`, 320 × 84).
+  static const double listRow = 84;
 
-  /// The sidebar button, 40 × 52, at x 164 of the sidebar.
-  static const double sidebarToggleX = 164;
-  static const double sidebarToggleWidth = 40;
+  /// The selection capsule: x 8, y 4, 304 × 76, radius 8.
+  static const double selectionInsetX = 8;
+  static const double selectionInsetY = 4;
+  static const double selectionRadius = 8;
 
-  // Message list (ML-01 › Message list).
-  static const double listWidth = 325;
-  static const double listRow = 80;
-
-  /// The row cell: 276 wide at x 16 of the list; the overlay scroller takes the right edge.
-  static const double cellX = 16;
-  static const double cellWidth = 276;
-
-  /// Inside the cell: sender, date, subject and summary.
-  static const double senderX = 17;
-  static const double senderY = 7;
-  static const double dateY = 9;
+  /// Inside a row: the sender, subject and summary start at x 24 and end 16 before the
+  /// row's edge.
+  static const double textX = 24;
+  static const double textEnd = 16;
+  static const double senderY = 8;
+  static const double senderLine = 18;
+  static const double dateY = 8;
   static const double subjectY = 26;
-  static const double summaryY = 43;
-  static const double summaryLine = 15;
+  static const double subjectLine = 18;
+  static const double summaryY = 44;
+  static const double summaryLine = 16;
 
-  /// The unread dot (ML-01b): 8 pt across, its centre 12.5 pt before the sender's start, on
-  /// the sender's line; white on a selected row.
+  /// The unread dot: 8 across at x 12, y 12.
   static const double unreadDot = 8;
-  static const double unreadDotBeforeSender = 12.5;
+  static const double unreadDotX = 12;
+  static const double unreadDotY = 12;
+
+  /// A section header of the search results (kit `Apps/Mail/List Header`): 28 tall, the
+  /// title at x 24, y 8.
+  static const double listHeader = 28;
+  static const double listHeaderTop = 8;
 
   /// A selected message is marked read ~120 ms after the selection (ML-01b); after a delete
   /// the next message is selected at once and the reader follows ~120 ms later.
   static const Duration markReadDelay = Duration(milliseconds: 120);
   static const Duration readerAfterDelete = Duration(milliseconds: 120);
 
-  /// The selection fill across the row (inset and radius PROVISIONAL, from Mustache's list).
-  static const double selectionInset = 8;
-  static const double selectionRadius = 8;
-
-  /// A thread child row: sender and one summary line (~45 pt).
-  static const double threadChildRow = 45;
+  /// A thread child row: sender and one summary line (two-line list row, `components.md`).
+  static const double threadChildRow = 44;
 
   /// Thread expansion: the list changes ~76 ms after the release and settles in ~190–240 ms.
   static const Duration threadExpand = Duration(milliseconds: 200);
   static const Duration threadCollapse = Duration(milliseconds: 210);
 
-  // Toolbar (ML-01 › Viewer window).
-  static const double titleBlockWidth = 235;
-  static const double searchFieldWidth = 299;
+  // Reader (kit `Apps/Mail/Reader`, 720 × 668).
+  static const double readerPadding = 20;
+  static const double readerCountX = 24;
+  static const double readerCountY = 16;
+  static const double readerCountLine = 16;
 
-  // Reader (ML-01 › Reader).
-  static const double readerHeader = 32;
-  static const double cardGap = 8;
+  /// The first card starts at y 40 of the reader; the next ones 12 below the previous.
+  static const double readerCardsTop = 40;
+  static const double cardGap = 12;
+  static const double cardRadius = 12;
 
-  /// Card padding and radius: PROVISIONAL (not measured; window language).
+  /// Inside a card: the avatar at (16, 16), 32 across; the sender, subject and recipients
+  /// at x 60, y 12 (pitch 20); the header is 80 tall with the separator at its bottom; the
+  /// body starts 16 below it.
   static const double cardPadding = 16;
-  static const double cardRadius = 10;
+  static const double cardHeader = 80;
+  static const double cardTextX = 60;
+  static const double cardTextY = 12;
   static const double avatar = 32;
+  static const double avatarTop = 16;
 
-  /// Composer (ML-01 › Composer): window size, field rows from y 61, 40 pt each.
-  static const Size composer = Size(836, 779);
-  static const double composerFieldsY = 61;
+  /// PROVISIONAL (not in the kit): the message bar under the toolbar.
+  static const double bannerHeight = 32;
+
+  // Composer (kit `Apps/Mail/Compose`, 832 × 720).
+  static const Size composer = Size(832, 720);
+
+  /// The field rows start at y 52 (under the toolbar), 40 tall; the labels at x 24 (64 wide),
+  /// the values at x 104; the separators run from x 24 to 24 before the right edge.
   static const double composerField = 40;
+  static const double composerLabelX = 24;
+  static const double composerLabelWidth = 80;
+  static const double composerSeparatorInset = 24;
+
+  /// Below the last row: a separator, then the body 20 further down at x 24.
+  static const double composerBodyInset = 24;
+  static const double composerBodyTop = 20;
+
+  /// The Send button (kit `Titlebars/Piece/Mail Send`): a 28 pt circle.
+  static const double sendButton = 28;
 
   /// Composer motion (ML-01b): it appears opaque at 98.8 % and reaches 100 % in ~80 ms with a
   /// 1 pt overshoot; closing an empty one fades and blurs while shrinking slightly towards
-  /// the centre in ~160 ms (shrink amount and blur PROVISIONAL).
+  /// the centre in ~160 ms (shrink amount and blur are an assumption: not measured).
   static const Duration composerOpen = Duration(milliseconds: 80);
   static const double composerOpenScale = 0.988;
   static const Duration composerClose = Duration(milliseconds: 160);
@@ -102,158 +120,79 @@ abstract final class MailMetrics {
   static const Duration sendLiftDelay = Duration(milliseconds: 100);
   static const double sendLiftSpeed = 3.3;
 
-  /// The Send button: a 38 pt circle (ML-01b).
-  static const double sendButton = 38;
-
-  /// Add Account sheet: 528 × 416, the address box 488 × 40.
+  // Add Account sheet (kit `Apps/Mail/Add Account`, 528 × 416).
   static const Size accountSheet = Size(528, 416);
   static const double accountFieldWidth = 488;
-  static const double accountField = 40;
-
-  /// PROVISIONAL: the message bar under the toolbar (not in the reference).
-  static const double bannerHeight = 30;
-
-  /// The window buttons end at x 79: with the sidebar hidden the toolbar starts there.
-  static const double windowButtonsEnd = 80;
+  static const double accountTitleTop = 40;
+  static const double accountHintTop = 76;
+  static const double accountFieldsTop = 128;
 }
 
-/// Colours, light and dark (ML-01; greys are captured values, saturated colours sRGB).
+/// The colours of the window, read from the Amalfi tokens of the current appearance and the
+/// Mail palette (`App/Mail/*`).
 @immutable
 class MailColors {
-  const MailColors({
-    required this.sidebar,
-    required this.content,
-    required this.text,
-    required this.secondary,
-    required this.tertiary,
-    required this.separator,
-    required this.selection,
-    required this.selectionText,
-    required this.selectionSecondary,
-    required this.inactiveSelection,
-    required this.sidebarSelection,
-    required this.sidebarHeading,
-    required this.unread,
-    required this.thread,
-    required this.threadTint,
-    required this.flagged,
-    required this.banner,
-    required this.link,
-    required this.field,
-    required this.quote,
-    required this.reader,
-    required this.card,
-    required this.highlight,
-    required this.send,
-  });
+  const MailColors._(this.theme);
 
-  final Color sidebar;
+  final AmalfiThemeData theme;
 
-  /// The list background.
-  final Color content;
-  final Color text;
-  final Color secondary;
-  final Color tertiary;
+  AmalfiColors get _c => theme.colors;
 
-  /// List/reader separator and row separators.
-  final Color separator;
-  final Color selection;
-  final Color selectionText;
-  final Color selectionSecondary;
-  final Color inactiveSelection;
-  final Color sidebarSelection;
-  final Color sidebarHeading;
-  final Color unread;
+  /// The colours of the appearance under [context] (with the Mail palette).
+  factory MailColors.of(BuildContext context) =>
+      MailColors._(AmalfiTheme.of(context).copyWith(app: 'Mail'));
 
-  /// The thread count and its chevron.
-  final Color thread;
+  /// The colours of [brightness] (tests, HTML pages that keep their own colours).
+  factory MailColors.forBrightness(Brightness brightness) =>
+      MailColors._(AmalfiThemeData(brightness: brightness, app: 'Mail'));
 
-  /// The block behind an expanded thread's children.
-  final Color threadTint;
-  final Color flagged;
-  final Color banner;
-  final Color link;
-  final Color field;
-  final Color quote;
+  static final MailColors light = MailColors.forBrightness(Brightness.light);
+  static final MailColors dark = MailColors.forBrightness(Brightness.dark);
 
-  /// The reader background and its message cards.
-  final Color reader;
-  final Color card;
+  Color get sidebar => _c.surfaceSidebar;
 
-  /// Search matches in the list.
-  final Color highlight;
+  /// The list's and the toolbars' background.
+  Color get content => _c.surfaceWindow;
 
-  /// The send button.
-  final Color send;
+  /// The reader's background; the message cards are [card].
+  Color get reader => _c.surfaceSidebar;
+  Color get card => _c.surfaceRaised;
+  Color get field => _c.surfaceRaised;
 
-  static const MailColors light = MailColors(
-    sidebar: Color(0xFFEAEAEB),
-    content: Color(0xFFFFFFFF),
-    // PROVISIONAL text greys (window language, as in Mustache).
-    text: Color(0xFF1D1D1F),
-    secondary: Color(0xFF6E6E73),
-    tertiary: Color(0xFF9E9EA3),
-    separator: Color(0xFFE6E6E6),
-    selection: Color(0xFF0171E1),
-    selectionText: Color(0xFFFFFFFF),
-    // PROVISIONAL: secondary text on the selection.
-    selectionSecondary: Color(0xFFD6E6FA),
-    inactiveSelection: Color(0xFFDCDCDC),
-    sidebarSelection: Color(0xFFD3D6DC),
-    // PROVISIONAL: "small gray semibold".
-    sidebarHeading: Color(0xFF8E8E93),
-    unread: Color(0xFF0088FF),
-    thread: Color(0xFF0088FF),
-    threadTint: Color(0xFFEDF3FB),
-    flagged: Color(0xFFFF9500),
-    banner: Color(0xFFF2F2F7),
-    link: Color(0xFF0064E1),
-    field: Color(0xFFFFFFFF),
-    quote: Color(0xFFC7C7CC),
-    reader: Color(0xFFF8F8F8),
-    card: Color(0xFFFFFFFF),
-    // PROVISIONAL: the yellow of the search matches.
-    highlight: Color(0xFFFFE066),
-    // ML-01b: sRGB #008fff.
-    send: Color(0xFF008FFF),
-  );
+  /// The block behind an expanded thread's children and the remote-content banner.
+  Color get banner => _c.surfaceSunken;
+  Color get threadTint => _c.surfaceSidebar;
 
-  static const MailColors dark = MailColors(
-    sidebar: Color(0xFF2C2C2D),
-    content: Color(0xFF272728),
-    text: Color(0xFFDFDFE0),
-    secondary: Color(0xFF9E9E9E),
-    tertiary: Color(0xFF6E6E73),
-    separator: Color(0xFF3C3C3D),
-    selection: Color(0xFF026ED1),
-    selectionText: Color(0xFFFFFFFF),
-    selectionSecondary: Color(0xFFCFE0F5),
-    inactiveSelection: Color(0xFF464646),
-    sidebarSelection: Color(0xFF44484D),
-    sidebarHeading: Color(0xFF8E8E93),
-    // PROVISIONAL: the dark unread dot is taken as the light one.
-    unread: Color(0xFF0088FF),
-    thread: Color(0xFF0088FF),
-    threadTint: Color(0xFF253244),
-    flagged: Color(0xFFFF9F0A),
-    banner: Color(0xFF323234),
-    link: Color(0xFF4DA3FF),
-    field: Color(0xFF1E1E1F),
-    quote: Color(0xFF48484A),
-    reader: Color(0xFF1B1B1B),
-    card: Color(0xFF272728),
-    highlight: Color(0xFF8A7414),
-    // PROVISIONAL: the dark Send circle was not measured; the light value.
-    send: Color(0xFF008FFF),
-  );
+  Color get text => _c.textPrimary;
+  Color get secondary => _c.textSecondary;
+  Color get tertiary => _c.textTertiary;
+  Color get separator => _c.lineSeparator;
+  Color get border => _c.lineBorder;
 
-  static MailColors of(BuildContext context) =>
-      MediaQuery.maybePlatformBrightnessOf(context) == Brightness.dark
-      ? dark
-      : light;
+  Color get accent => _c.accentAmalfi;
+  Color get accentSoft => _c.accentAmalfiSoft;
+  Color get onAccent => _c.textOnAccent;
+
+  /// The selected row's text (on the accent).
+  Color get selectionText => _c.textOnAccent;
+  Color get selection => _c.accentAmalfi;
+
+  /// The selected row of an inactive window.
+  // Assumption: not measured (the kit draws only the active window): a neutral capsule.
+  Color get inactiveSelection => _c.lineBorder;
+
+  Color get unread => _c.accentAmalfi;
+  Color get link => _c.accentAmalfi;
+  Color get destructive => _c.paletteTerracotta;
+
+  /// `App/Mail/Flag`.
+  Color get flagged => _c.mail.flag;
+
+  /// `App/Mail/Search Highlight`.
+  Color get highlight => _c.mail.searchHighlight;
 }
 
-/// A text style in Inter.
+/// A text style in Inter at an arbitrary size (the message body, which has no token).
 TextStyle mailText(
   double size,
   Color color, {
@@ -268,42 +207,7 @@ TextStyle mailText(
   height: height,
 );
 
-/// A symbol of silica-icons (`symbols/regular/<name>.svg`) in `color`, or a glyph when the icons
-/// are not installed (tests, outside Silica).
-class Symbol extends StatelessWidget {
-  const Symbol(
-    this.name, {
-    super.key,
-    required this.color,
-    this.size = 18,
-    this.iconsDir,
-    this.fallback = '•',
-  });
-
-  final String name;
-  final Color color;
-  final double size;
-  final String? iconsDir;
-  final String fallback;
-
-  @override
-  Widget build(BuildContext context) {
-    final dir = iconsDir;
-    final file = dir == null ? null : File('$dir/symbols/regular/$name.svg');
-    if (file != null && file.existsSync()) {
-      return SvgPicture.file(
-        file,
-        width: size,
-        height: size,
-        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-      );
-    }
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Center(
-        child: Text(fallback, style: mailText(size * 0.7, color, height: 1)),
-      ),
-    );
-  }
-}
+/// An Icon Kit symbol (`symbols/regular/<name>.svg` of the installed silica-icons) in
+/// [color], or an empty box of [size] when the icons are not installed (tests).
+Widget mailSymbol(String name, {double size = 16, Color? color}) =>
+    AmalfiSymbol(name, size: size, color: color);

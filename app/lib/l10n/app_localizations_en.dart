@@ -89,7 +89,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noResults => 'Nothing found';
 
   @override
-  String get noSelection => 'No message selected';
+  String get noSelection => 'No Message Selected';
 
   @override
   String get today => 'Today';
@@ -337,6 +337,50 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addressPlaceholder => 'name@example.com';
+
+  @override
+  String get filter => 'Filter';
+
+  @override
+  String get more => 'More';
+
+  @override
+  String get showAllMessages => 'All Messages';
+
+  @override
+  String get showUnread => 'Unread';
+
+  @override
+  String get showFlagged => 'Flagged';
+
+  @override
+  String get bestMatches => 'Best Matches';
+
+  @override
+  String get allResults => 'All Results';
+
+  @override
+  String get allMailboxes => 'All Mailboxes';
+
+  @override
+  String get searchSection => 'Search';
+
+  @override
+  String get saveDraftTitle => 'Save this message as a draft?';
+
+  @override
+  String get saveDraftMessage =>
+      'The message has changes that have not been saved. You can keep it as a draft or discard it.';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get dontSave => 'Don’t Save';
+
+  @override
+  String get addAccountHint =>
+      'Enter your email address and Mail will find the settings.';
 
   @override
   String get menuFile => 'File';

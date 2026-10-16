@@ -163,8 +163,8 @@ class ComposeSheet extends StatefulWidget {
 }
 
 /// The composer's open scale over time (ML-01b): from 98.8 % up past 100 % by ~1 pt on each
-/// side, then back to 100 %, in [MailMetrics.composerOpen] (the overshoot's shape is
-/// PROVISIONAL: only its size and the total time were measured).
+/// side, then back to 100 %, in [MailMetrics.composerOpen] (the overshoot's shape is an
+/// assumption, not measured: only its size and the total time were).
 double composerOpenScale(double t) {
   const overshoot = 1 + 2 / 836;
   if (t <= 0) return MailMetrics.composerOpenScale;
@@ -196,12 +196,12 @@ class _ComposeSheetState extends State<ComposeSheet>
   Future<void>? _sendResult;
   String? _sendError;
 
-  late final TextEditingController _to = TextEditingController(
-    text: formatAddresses(widget.request.to),
-  );
-  late final TextEditingController _cc = TextEditingController(
-    text: formatAddresses(widget.request.cc),
-  );
+  /// The recipients already turned into tokens; what is typed after them is in the
+  /// controller until a comma, a semicolon or leaving the field commits it.
+  late final List<Address> _toTokens = [...widget.request.to];
+  late final List<Address> _ccTokens = [...widget.request.cc];
+  final TextEditingController _to = TextEditingController();
+  final TextEditingController _cc = TextEditingController();
   late final TextEditingController _subject = TextEditingController(
     text: widget.request.subject,
   );
@@ -215,23 +215,57 @@ class _ComposeSheetState extends State<ComposeSheet>
   bool _sending = false;
   String? _error;
 
+  /// The "save as a draft?" alert is up.
+  bool _asking = false;
+
+  List<Address> get _toAll => [..._toTokens, ...parseAddresses(_to.text)];
+  List<Address> get _ccAll => [..._ccTokens, ...parseAddresses(_cc.text)];
+
   @override
   void initState() {
     super.initState();
     // The send button is dimmed until there is a recipient.
     _to.addListener(_changed);
+    _cc.addListener(_changed);
+    _toFocus.addListener(_leftField);
+    _ccFocus.addListener(_leftField);
     widget.controller?._attach(_send, _close);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        widget.controller?._setCanSend(parseAddresses(_to.text).isNotEmpty);
-      }
-      (widget.request.to.isEmpty ? _toFocus : _bodyFocus).requestFocus();
+      if (mounted) widget.controller?._setCanSend(_toAll.isNotEmpty);
+      (_toTokens.isEmpty ? _toFocus : _bodyFocus).requestFocus();
     });
   }
 
+  /// A comma or semicolon turns what was typed before it into tokens.
+  void _commitSeparated(TextEditingController c, List<Address> tokens) {
+    final text = c.text;
+    final cut = text.lastIndexOf(RegExp(r'[,;]'));
+    if (cut < 0) return;
+    tokens.addAll(parseAddresses(text.substring(0, cut)));
+    final rest = text.substring(cut + 1).trimLeft();
+    c.value = TextEditingValue(
+      text: rest,
+      selection: TextSelection.collapsed(offset: rest.length),
+    );
+  }
+
+  /// Leaving a recipient field commits what is typed in it.
+  void _leftField() {
+    if (!_toFocus.hasFocus && _to.text.trim().isNotEmpty) {
+      _toTokens.addAll(parseAddresses(_to.text));
+      _to.clear();
+    }
+    if (!_ccFocus.hasFocus && _cc.text.trim().isNotEmpty) {
+      _ccTokens.addAll(parseAddresses(_cc.text));
+      _cc.clear();
+    }
+  }
+
   void _changed() {
+    _commitSeparated(_to, _toTokens);
+    _commitSeparated(_cc, _ccTokens);
     setState(() {});
-    widget.controller?._setCanSend(parseAddresses(_to.text).isNotEmpty);
+    widget.controller?._setCanSend(_toAll.isNotEmpty);
   }
 
   @override
@@ -241,6 +275,9 @@ class _ComposeSheetState extends State<ComposeSheet>
     _closing.dispose();
     _lifting?.dispose();
     _to.removeListener(_changed);
+    _cc.removeListener(_changed);
+    _toFocus.removeListener(_leftField);
+    _ccFocus.removeListener(_leftField);
     for (final c in [_to, _cc, _subject, _body]) {
       c.dispose();
     }
@@ -251,7 +288,7 @@ class _ComposeSheetState extends State<ComposeSheet>
   }
 
   Future<void> _send() async {
-    final to = parseAddresses(_to.text);
+    final to = _toAll;
     if (to.isEmpty) {
       setState(() => _error = l10n.noRecipients);
       return;
@@ -261,13 +298,14 @@ class _ComposeSheetState extends State<ComposeSheet>
       _sending = true;
       _error = null;
       _sendError = null;
+      _asking = false;
     });
     // The message goes to the engine (its outbox) at once; the window leaves meanwhile.
     _sendResult = _deliver(
       Draft(
         account: widget.request.account.id,
         to: to,
-        cc: parseAddresses(_cc.text),
+        cc: _ccAll,
         subject: _subject.text,
         text: _body.text,
         inReplyTo: widget.request.inReplyTo,
@@ -317,89 +355,163 @@ class _ComposeSheetState extends State<ComposeSheet>
         .clamp(0.0, _liftDistance);
   }
 
-  /// Closing without sending (Cancel, Escape, Cmd+W): a short blur-fade towards the centre.
+  /// Whether the user changed the message from what the composer opened with.
+  bool get _changedByUser {
+    final r = widget.request;
+    return formatAddresses(_toAll) != formatAddresses(r.to) ||
+        formatAddresses(_ccAll) != formatAddresses(r.cc) ||
+        _subject.text != r.subject ||
+        _body.text != r.text;
+  }
+
+  /// Closing (the close button, Escape, Cmd+W): a changed message asks first, as the
+  /// reference's alert does; an unchanged one goes at once.
   Future<void> _close() async {
     if (_closing.isAnimating || _lifting != null) return;
+    if (_changedByUser && !_asking) {
+      setState(() => _asking = true);
+      return;
+    }
+    await _discard();
+  }
+
+  /// Closes without sending: a short blur-fade towards the centre.
+  Future<void> _discard() async {
+    if (_closing.isAnimating || _lifting != null) return;
+    if (_asking) setState(() => _asking = false);
     await _closing.forward();
     if (mounted) widget.onClose();
   }
 
-  Widget _field(
+  /// One row of the header (kit `Apps/Mail/Compose`): a 40 pt row with the label at x 24 and
+  /// the value at x 104, a separator inset 24 along its top (none on the first row).
+  Widget _row(
     MailColors colors,
     String label,
-    TextEditingController controller,
-    FocusNode focus,
-    String key,
-  ) => Container(
-    // ML-01: one field per 40 pt row, 1 pt separators.
-    height: MailMetrics.composerField,
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    decoration: BoxDecoration(
-      border: Border(bottom: BorderSide(color: colors.separator)),
-    ),
-    child: Row(
+    Widget value, {
+    bool first = false,
+  }) => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: MailMetrics.composerField),
+    child: Stack(
       children: [
-        SizedBox(
-          width: 64,
-          child: Text('$label:', style: mailText(13, colors.secondary)),
-        ),
-        Expanded(
-          child: EditableText(
-            key: ValueKey(key),
-            controller: controller,
-            focusNode: focus,
-            style: mailText(13, colors.text),
-            cursorColor: colors.text,
-            backgroundCursorColor: colors.text,
-            maxLines: 1,
+        if (!first)
+          Positioned(
+            left: MailMetrics.composerSeparatorInset,
+            right: MailMetrics.composerSeparatorInset,
+            top: 0,
+            height: 1,
+            child: ColoredBox(color: colors.separator),
+          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: MailMetrics.composerLabelX,
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: MailMetrics.composerLabelWidth,
+                child: Text(
+                  '$label:',
+                  style: AmalfiType.callout(color: colors.secondary),
+                ),
+              ),
+              Expanded(child: value),
+            ],
           ),
         ),
       ],
     ),
   );
 
-  /// Send (ML-01: a 40 × 52 button; ML-01b: a 38 pt #008fff circle with a white upward
-  /// arrow, faded until there is a recipient).
-  Widget _sendButton(MailColors colors) {
-    final ready = !_sending && parseAddresses(_to.text).isNotEmpty;
-    return Semantics(
-      button: true,
-      enabled: ready,
-      label: l10n.send,
-      child: GestureDetector(
-        key: const ValueKey('compose send'),
-        behavior: HitTestBehavior.opaque,
-        onTap: _sending ? null : _send,
-        child: SizedBox(
-          width: 40,
-          height: toolbarHeight,
-          child: Center(
-            child: Opacity(
-              opacity: ready ? 1 : 0.4,
-              child: Container(
-                width: MailMetrics.sendButton,
-                height: MailMetrics.sendButton,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colors.send,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  '↑',
-                  style: mailText(
-                    19,
-                    colors.selectionText,
-                    weight: FontWeight.w600,
-                    height: 1,
+  /// A plain value: one line of text in the body style.
+  Widget _textValue(
+    MailColors colors,
+    TextEditingController controller,
+    FocusNode focus,
+    String key,
+  ) => SizedBox(
+    height: MailMetrics.composerField,
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: EditableText(
+        key: ValueKey(key),
+        controller: controller,
+        focusNode: focus,
+        style: AmalfiType.body(color: colors.text),
+        cursorColor: colors.accent,
+        backgroundCursorColor: colors.text,
+        selectionColor: colors.accentSoft,
+        maxLines: 1,
+      ),
+    ),
+  );
+
+  /// The recipients of a row: a token each (kit `Fields/Token`), then the text being typed.
+  Widget _recipients(
+    MailColors colors,
+    List<Address> tokens,
+    TextEditingController controller,
+    FocusNode focus,
+    String key,
+  ) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: focus.requestFocus,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: MailMetrics.composerField),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Wrap(
+          spacing: 4,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (var i = 0; i < tokens.length; i++)
+              AmalfiToken(
+                key: ValueKey('$key token $i'),
+                label: tokens[i].name.isEmpty
+                    ? tokens[i].address
+                    : tokens[i].name,
+                onRemove: () {
+                  setState(() => tokens.removeAt(i));
+                  widget.controller?._setCanSend(_toAll.isNotEmpty);
+                },
+              ),
+            SizedBox(
+              width: 200,
+              height: 20,
+              child: Focus(
+                // Backspace in an empty field removes the last token.
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.backspace &&
+                      controller.text.isEmpty &&
+                      tokens.isNotEmpty) {
+                    setState(tokens.removeLast);
+                    widget.controller?._setCanSend(_toAll.isNotEmpty);
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: EditableText(
+                    key: ValueKey(key),
+                    controller: controller,
+                    focusNode: focus,
+                    style: AmalfiType.body(color: colors.text),
+                    cursorColor: colors.accent,
+                    backgroundCursorColor: colors.text,
+                    selectionColor: colors.accentSoft,
+                    maxLines: 1,
                   ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -411,7 +523,13 @@ class _ComposeSheetState extends State<ComposeSheet>
           meta: true,
           shift: true,
         ): _send,
-        const SingleActivator(LogicalKeyboardKey.escape): _close,
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (_asking) {
+            setState(() => _asking = false);
+          } else {
+            _close();
+          }
+        },
         const SingleActivator(LogicalKeyboardKey.keyW, meta: true): _close,
       },
       child: LayoutBuilder(
@@ -445,8 +563,8 @@ class _ComposeSheetState extends State<ComposeSheet>
               return Opacity(
                 opacity: 1 - close,
                 child: ColoredBox(
-                  // PROVISIONAL: the dim behind the panel (the reference composer is its
-                  // own window, silica-os/mail issue for a separate window).
+                  // Assumption: not in the kit (the reference composer is its own window,
+                  // silica-os/mail#5): the dim behind the panel.
                   color: Color.fromRGBO(0, 0, 0, _lifting == null ? 0.2 : 0),
                   child: Center(child: panel),
                 ),
@@ -459,90 +577,235 @@ class _ComposeSheetState extends State<ComposeSheet>
     );
   }
 
-  Widget _panel(MailColors colors) => Container(
-    key: const ValueKey('composer panel'),
-    constraints: BoxConstraints.loose(MailMetrics.composer),
-    decoration: BoxDecoration(
-      color: colors.content,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: colors.separator),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x40000000),
-          blurRadius: 30,
-          offset: Offset(0, 12),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          height: toolbarHeight,
-          child: Row(
-            children: [
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  _subject.text.isEmpty ? l10n.newMessage : _subject.text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: mailText(13, colors.text, weight: FontWeight.w600),
+  /// Send (kit `Titlebars/Piece/Mail Send`): a 28 pt accent circle with a white upward arrow,
+  /// dimmed until there is a recipient.
+  Widget _sendButton() {
+    final ready = !_sending && _toAll.isNotEmpty;
+    return _SendButton(
+      key: const ValueKey('compose send'),
+      label: l10n.send,
+      // Pressing it without a recipient says so (the error line), as before.
+      onPressed: _sending ? null : _send,
+      dimmed: !ready,
+    );
+  }
+
+  Widget _panel(MailColors colors) {
+    final from = widget.request.account;
+    return Container(
+      key: const ValueKey('composer panel'),
+      constraints: BoxConstraints.loose(MailMetrics.composer),
+      child: AmalfiWindow(
+        active: WindowActiveScope.of(context),
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AmalfiToolbar(
+                  padding: const EdgeInsets.only(left: 4, right: 8),
+                  children: [
+                    // Nothing minimises or zooms a sheet-like panel: those two stay grey.
+                    AmalfiControlsPiece(onClose: _close),
+                    const AmalfiSpacerPiece(),
+                    AmalfiTitlePiece(
+                      title: _subject.text.isEmpty
+                          ? l10n.newMessage
+                          : _subject.text,
+                    ),
+                    const AmalfiSpacerPiece(),
+                    AmalfiToolbarPiece(
+                      leading: 4,
+                      trailing: 16,
+                      child: _sendButton(),
+                    ),
+                  ],
                 ),
-              ),
-              GestureDetector(
-                key: const ValueKey('compose cancel'),
-                onTap: _close,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    l10n.cancel,
-                    style: mailText(13, colors.secondary),
+                _row(
+                  colors,
+                  l10n.to,
+                  _recipients(colors, _toTokens, _to, _toFocus, 'compose to'),
+                  first: true,
+                ),
+                _row(
+                  colors,
+                  l10n.cc,
+                  _recipients(colors, _ccTokens, _cc, _ccFocus, 'compose cc'),
+                ),
+                _row(
+                  colors,
+                  l10n.subject,
+                  _textValue(
+                    colors,
+                    _subject,
+                    _subjectFocus,
+                    'compose subject',
+                  ),
+                ),
+                _row(
+                  colors,
+                  l10n.from,
+                  SizedBox(
+                    height: MailMetrics.composerField,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        key: const ValueKey('compose from'),
+                        formatAddresses([
+                          Address(from.address, name: from.name),
+                        ]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AmalfiType.body(color: colors.secondary),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 1, child: ColoredBox(color: colors.separator)),
+                if (_error case final error?)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      MailMetrics.composerBodyInset,
+                      8,
+                      MailMetrics.composerBodyInset,
+                      0,
+                    ),
+                    child: Text(
+                      error,
+                      key: const ValueKey('compose error'),
+                      style: AmalfiType.callout(color: colors.destructive),
+                    ),
+                  ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(
+                      MailMetrics.composerBodyInset,
+                      MailMetrics.composerBodyTop,
+                      MailMetrics.composerBodyInset,
+                      MailMetrics.composerBodyTop,
+                    ),
+                    child: EditableText(
+                      key: const ValueKey('compose body'),
+                      controller: _body,
+                      focusNode: _bodyFocus,
+                      style: AmalfiType.body(color: colors.text),
+                      cursorColor: colors.accent,
+                      backgroundCursorColor: colors.text,
+                      selectionColor: colors.accentSoft,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (_asking) ...[
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {},
+                  child: ColoredBox(
+                    key: const ValueKey('compose scrim'),
+                    color: colors.banner.withValues(alpha: 0.7),
                   ),
                 ),
               ),
-              _sendButton(colors),
-              const SizedBox(width: 8),
+              Center(child: _discardAlert()),
             ],
-          ),
+          ],
         ),
-        // ML-01: the first field row starts at y 61.
-        const SizedBox(height: MailMetrics.composerFieldsY - toolbarHeight),
-        Container(height: 1, color: colors.separator),
-        _field(colors, l10n.to, _to, _toFocus, 'compose to'),
-        _field(colors, l10n.cc, _cc, _ccFocus, 'compose cc'),
-        _field(
-          colors,
-          l10n.subject,
-          _subject,
-          _subjectFocus,
-          'compose subject',
-        ),
-        if (_error case final error?)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Text(
-              error,
-              key: const ValueKey('compose error'),
-              style: mailText(12, const Color(0xFFE5484D)),
-            ),
-          ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: EditableText(
-              key: const ValueKey('compose body'),
-              controller: _body,
-              focusNode: _bodyFocus,
-              style: mailText(13.5, colors.text, height: 1.45),
-              cursorColor: colors.text,
-              backgroundCursorColor: colors.text,
-              maxLines: null,
-              keyboardType: TextInputType.multiline,
-            ),
-          ),
-        ),
-      ],
-    ),
+      ),
+    );
+  }
+
+  /// The alert on closing a changed message (kit `Apps/Mail/Compose Discard`).
+  Widget _discardAlert() => AmalfiAlert(
+    key: const ValueKey('compose discard'),
+    title: l10n.saveDraftTitle,
+    message: l10n.saveDraftMessage,
+    actions: [
+      AmalfiPushButton(
+        key: const ValueKey('compose discard cancel'),
+        label: l10n.cancel,
+        autofocus: true,
+        onPressed: () => setState(() => _asking = false),
+      ),
+      AmalfiPushButton(
+        key: const ValueKey('compose discard dont save'),
+        label: l10n.dontSave,
+        onPressed: _discard,
+      ),
+      // The engine keeps no drafts yet (silica-os/mail#10): Save waits for it.
+      AmalfiPushButton(
+        key: const ValueKey('compose discard save'),
+        label: l10n.save,
+        variant: AmalfiPushButtonVariant.primary,
+        onPressed: null,
+      ),
+    ],
   );
+}
+
+/// The Send button: a 28 pt accent circle with a white arrow; hovered or pressed it takes
+/// the pressed accent; dimmed (35 %) it still answers, so that Send without a recipient says
+/// why it did nothing.
+class _SendButton extends StatefulWidget {
+  const _SendButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    required this.dimmed,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool dimmed;
+
+  @override
+  State<_SendButton> createState() => _SendButtonState();
+}
+
+class _SendButtonState extends State<_SendButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MailColors.of(context);
+    final enabled = widget.onPressed != null;
+    return Semantics(
+      button: true,
+      enabled: enabled && !widget.dimmed,
+      label: widget.label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+        onTapCancel: () => setState(() => _pressed = false),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTap: widget.onPressed,
+        child: Opacity(
+          opacity: widget.dimmed ? AmalfiStates.disabledOpacity : 1,
+          child: Container(
+            width: MailMetrics.sendButton,
+            height: MailMetrics.sendButton,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _pressed
+                  ? AmalfiTheme.of(context).colors.accentAmalfiPressed
+                  : colors.accent,
+              shape: BoxShape.circle,
+            ),
+            child: AmalfiSymbol(
+              'arrow-up',
+              size: 16,
+              color: colors.onAccent,
+              fallback: Text(
+                '↑',
+                style: mailText(16, colors.onAccent, height: 1),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

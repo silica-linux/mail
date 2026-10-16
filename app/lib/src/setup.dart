@@ -8,6 +8,7 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:silica_ui/silica_ui.dart';
 
 import 'l10n.dart';
 import 'model.dart';
@@ -75,7 +76,7 @@ class _AccountSetupState extends State<AccountSetup> {
     // Continue stays dimmed until there is an address.
     _address.addListener(_changed);
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _nameFocus.requestFocus(),
+      (_) => _addressFocus.requestFocus(),
     );
   }
 
@@ -202,9 +203,11 @@ class _AccountSetupState extends State<AccountSetup> {
     }
   }
 
+  /// A text field of the sheet (kit `Fields/Text Field/Large`), with an optional caption
+  /// above it.
   Widget _field(
     MailColors colors,
-    String label,
+    String? label,
     TextEditingController controller,
     FocusNode focus,
     String key, {
@@ -212,54 +215,33 @@ class _AccountSetupState extends State<AccountSetup> {
     String? placeholder,
     double? width,
   }) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.only(bottom: 12),
     child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: mailText(12, colors.secondary)),
-        const SizedBox(height: 4),
-        // ML-01: the address sits in a 488 × 40 box (radius PROVISIONAL).
-        Container(
+        if (label != null) ...[
+          Text(label, style: AmalfiType.callout(color: colors.secondary)),
+          const SizedBox(height: 4),
+        ],
+        AmalfiTextField(
+          key: ValueKey(key),
+          controller: controller,
+          focusNode: focus,
+          size: AmalfiFieldSize.large,
           width: width ?? MailMetrics.accountFieldWidth,
-          height: MailMetrics.accountField,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          alignment: Alignment.centerLeft,
-          decoration: BoxDecoration(
-            color: colors.field,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: colors.separator),
-          ),
-          child: Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              if (placeholder != null && controller.text.isEmpty)
-                IgnorePointer(
-                  child: Text(
-                    placeholder,
-                    style: mailText(13, colors.tertiary),
-                  ),
-                ),
-              EditableText(
-                key: ValueKey(key),
-                controller: controller,
-                focusNode: focus,
-                obscureText: obscure,
-                style: mailText(13, colors.text),
-                cursorColor: colors.text,
-                backgroundCursorColor: colors.text,
-                maxLines: 1,
-                onSubmitted: (_) => _continue(),
-              ),
-            ],
-          ),
+          obscureText: obscure,
+          placeholder: placeholder,
+          semanticLabel: label ?? placeholder,
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) => _continue(),
         ),
       ],
     ),
   );
 
   /// A server row of the manual step: the host, and the port beside it.
-  // PROVISIONAL: the manual server form is not measured (ML-01 measured only the address
-  // sheet); it keeps the measured field height and the sheet's 488 pt width.
+  // Assumption: not in the kit (it shows only the first step): the manual server form keeps
+  // the first step's field width.
   Widget _serverRow(
     MailColors colors,
     String label,
@@ -272,12 +254,16 @@ class _AccountSetupState extends State<AccountSetup> {
   ) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Expanded(child: _field(colors, label, host, hostFocus, hostKey)),
-      const SizedBox(width: 8),
-      SizedBox(
-        width: 96,
-        child: _field(colors, l10n.port, port, portFocus, portKey, width: 96),
+      _field(
+        colors,
+        label,
+        host,
+        hostFocus,
+        hostKey,
+        width: MailMetrics.accountFieldWidth - 96 - 8,
       ),
+      const SizedBox(width: 8),
+      _field(colors, l10n.port, port, portFocus, portKey, width: 96),
     ],
   );
 
@@ -290,7 +276,7 @@ class _AccountSetupState extends State<AccountSetup> {
           child: Text(
             l10n.googleAppPassword,
             key: const ValueKey('setup provider note'),
-            style: mailText(12, colors.secondary),
+            style: AmalfiType.callout(color: colors.secondary),
           ),
         ),
         SignInProvider.microsoft => Padding(
@@ -298,7 +284,7 @@ class _AccountSetupState extends State<AccountSetup> {
           child: Text(
             l10n.microsoftNotSupported,
             key: const ValueKey('setup provider note'),
-            style: mailText(12, const Color(0xFFE5484D)),
+            style: AmalfiType.callout(color: colors.destructive),
           ),
         ),
       };
@@ -318,192 +304,184 @@ class _AccountSetupState extends State<AccountSetup> {
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
       },
-      child: ColoredBox(
-        color: const Color(0x33000000),
-        child: Center(
-          // ML-01: the sheet is 528 × 416 (padding PROVISIONAL: 20 around the 488 field).
-          child: Container(
-            width: MailMetrics.accountSheet.width,
-            constraints: BoxConstraints(
-              minHeight: MailMetrics.accountSheet.height,
-            ),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: colors.content,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colors.separator),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x40000000),
-                  blurRadius: 30,
-                  offset: Offset(0, 12),
+      child: SizedBox(
+        key: const ValueKey('account sheet'),
+        width: MailMetrics.accountSheet.width,
+        height: MailMetrics.accountSheet.height,
+        child: AmalfiAlertSurface(
+          color: AmalfiTheme.of(context).colors.surfaceWindow,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: MailMetrics.accountTitleTop),
+              Text(
+                l10n.addAccount,
+                textAlign: TextAlign.center,
+                style: AmalfiType.title2(color: colors.text),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Text(
+                  l10n.addAccountHint,
+                  textAlign: TextAlign.center,
+                  style: AmalfiType.callout(color: colors.secondary),
                 ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  l10n.addAccount,
-                  style: mailText(15, colors.text, weight: FontWeight.w600),
-                ),
-                const SizedBox(height: 16),
-                if (_step == _Step.address || _step == _Step.discovering) ...[
-                  _field(
-                    colors,
-                    l10n.yourName,
-                    _name,
-                    _nameFocus,
-                    'setup name',
-                  ),
-                  _field(
-                    colors,
-                    l10n.emailAddress,
-                    _address,
-                    _addressFocus,
-                    'setup address',
-                    placeholder: l10n.addressPlaceholder,
-                  ),
-                ],
-                if (_step == _Step.discovering)
-                  Text(
-                    l10n.lookingForSettings,
-                    style: mailText(12, colors.secondary),
-                  ),
-                if (_step == _Step.manual) ...[
-                  Text(
-                    _address.text.trim(),
-                    style: mailText(13, colors.text, weight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 10),
-                  _serverRow(
-                    colors,
-                    l10n.incomingServer,
-                    _imapHost,
-                    _imapHostFocus,
-                    'setup imap host',
-                    _imapPort,
-                    _imapPortFocus,
-                    'setup imap port',
-                  ),
-                  _serverRow(
-                    colors,
-                    l10n.outgoingServer,
-                    _smtpHost,
-                    _smtpHostFocus,
-                    'setup smtp host',
-                    _smtpPort,
-                    _smtpPortFocus,
-                    'setup smtp port',
-                  ),
-                  _field(
-                    colors,
-                    l10n.userName,
-                    _username,
-                    _usernameFocus,
-                    'setup username',
-                  ),
-                ],
-                if (config != null &&
-                    (_step == _Step.password || _step == _Step.adding)) ...[
-                  Text(
-                    config.address,
-                    style: mailText(13, colors.text, weight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${l10n.incomingServer}: ${config.imapHost}:${config.imapPort}',
-                    key: const ValueKey('setup imap'),
-                    style: mailText(12, colors.secondary),
-                  ),
-                  Text(
-                    '${l10n.outgoingServer}: ${config.smtpHost}:${config.smtpPort}',
-                    style: mailText(12, colors.secondary),
-                  ),
-                  GestureDetector(
-                    key: const ValueKey('setup edit servers'),
-                    onTap: _step == _Step.adding ? null : () => _toManual(null),
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        l10n.editServerSettings,
-                        style: mailText(12, colors.link),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ?_providerNote(colors, config),
-                  if (!blocked) ...[
-                    _field(
-                      colors,
-                      l10n.password,
-                      _password,
-                      _passwordFocus,
-                      'setup password',
-                      obscure: true,
-                    ),
-                    Text(
-                      l10n.passwordNote,
-                      style: mailText(11, colors.tertiary),
-                    ),
-                  ],
-                ],
-                if (_error case final error?)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      error,
-                      key: const ValueKey('setup error'),
-                      style: mailText(12, const Color(0xFFE5484D)),
-                    ),
-                  ),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    GestureDetector(
-                      key: const ValueKey('setup cancel'),
-                      onTap: widget.onClose,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 5,
+              ),
+              const SizedBox(height: 36),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_step == _Step.address ||
+                          _step == _Step.discovering) ...[
+                        _field(
+                          colors,
+                          null,
+                          _address,
+                          _addressFocus,
+                          'setup address',
+                          placeholder: l10n.addressPlaceholder,
                         ),
-                        child: Text(
-                          l10n.cancel,
-                          style: mailText(13, colors.secondary),
+                        _field(
+                          colors,
+                          null,
+                          _name,
+                          _nameFocus,
+                          'setup name',
+                          placeholder: l10n.yourName,
                         ),
-                      ),
-                    ),
-                    GestureDetector(
-                      key: const ValueKey('setup continue'),
-                      onTap: busy ? null : _continue,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 5,
+                      ],
+                      if (_step == _Step.discovering)
+                        Text(
+                          l10n.lookingForSettings,
+                          style: AmalfiType.callout(color: colors.secondary),
                         ),
-                        decoration: BoxDecoration(
-                          color: busy ? colors.tertiary : colors.selection,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          _step == _Step.password || _step == _Step.adding
-                              ? l10n.signIn
-                              : l10n.continueButton,
-                          style: mailText(
-                            13,
-                            colors.selectionText,
-                            weight: FontWeight.w600,
+                      if (_step == _Step.manual) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            _address.text.trim(),
+                            style: AmalfiType.bodyEmphasis(color: colors.text),
                           ),
                         ),
-                      ),
+                        _serverRow(
+                          colors,
+                          l10n.incomingServer,
+                          _imapHost,
+                          _imapHostFocus,
+                          'setup imap host',
+                          _imapPort,
+                          _imapPortFocus,
+                          'setup imap port',
+                        ),
+                        _serverRow(
+                          colors,
+                          l10n.outgoingServer,
+                          _smtpHost,
+                          _smtpHostFocus,
+                          'setup smtp host',
+                          _smtpPort,
+                          _smtpPortFocus,
+                          'setup smtp port',
+                        ),
+                        _field(
+                          colors,
+                          l10n.userName,
+                          _username,
+                          _usernameFocus,
+                          'setup username',
+                        ),
+                      ],
+                      if (config != null &&
+                          (_step == _Step.password ||
+                              _step == _Step.adding)) ...[
+                        Text(
+                          config.address,
+                          style: AmalfiType.bodyEmphasis(color: colors.text),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${l10n.incomingServer}: ${config.imapHost}:${config.imapPort}',
+                          key: const ValueKey('setup imap'),
+                          style: AmalfiType.callout(color: colors.secondary),
+                        ),
+                        Text(
+                          '${l10n.outgoingServer}: ${config.smtpHost}:${config.smtpPort}',
+                          style: AmalfiType.callout(color: colors.secondary),
+                        ),
+                        GestureDetector(
+                          key: const ValueKey('setup edit servers'),
+                          onTap: _step == _Step.adding
+                              ? null
+                              : () => _toManual(null),
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              l10n.editServerSettings,
+                              style: AmalfiType.callout(color: colors.link),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ?_providerNote(colors, config),
+                        if (!blocked) ...[
+                          _field(
+                            colors,
+                            l10n.password,
+                            _password,
+                            _passwordFocus,
+                            'setup password',
+                            obscure: true,
+                          ),
+                          Text(
+                            l10n.passwordNote,
+                            style: AmalfiType.caption(color: colors.tertiary),
+                          ),
+                        ],
+                      ],
+                      if (_error case final error?)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            error,
+                            key: const ValueKey('setup error'),
+                            style: AmalfiType.callout(
+                              color: colors.destructive,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              // The kit's footer: Cancel and Continue at the end, 28 from the right edge, 32
+              // from the bottom (its Help button is not here: there is no help to open yet).
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 28, 32),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    AmalfiPushButton(
+                      key: const ValueKey('setup cancel'),
+                      label: l10n.cancel,
+                      onPressed: widget.onClose,
+                    ),
+                    const SizedBox(width: 8),
+                    AmalfiPushButton(
+                      key: const ValueKey('setup continue'),
+                      label: _step == _Step.password || _step == _Step.adding
+                          ? l10n.signIn
+                          : l10n.continueButton,
+                      variant: AmalfiPushButtonVariant.primary,
+                      onPressed: busy ? null : _continue,
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

@@ -24,6 +24,9 @@ enum ComposeKind { fresh, reply, replyAll, forward }
 /// What a search looks in: everything, or one field (a token before the text).
 enum SearchScope { all, sender, subject }
 
+/// Which messages the list shows (the filter button of the list's toolbar).
+enum MailFilter { all, unread, flagged }
+
 /// The rows of a search that match `text` in the field of `scope` (all: the engine's match).
 List<MessageSummary> filterByScope(
   List<MessageSummary> rows,
@@ -50,7 +53,6 @@ class MailWindow extends StatefulWidget {
   const MailWindow({
     super.key,
     required this.service,
-    this.iconsDir,
     this.now,
     this.engineError,
     this.sampleData = false,
@@ -59,7 +61,6 @@ class MailWindow extends StatefulWidget {
   });
 
   final MailService service;
-  final String? iconsDir;
 
   /// The current time (tests); null: the clock.
   final DateTime Function()? now;
@@ -108,11 +109,9 @@ class MailWindowState extends State<MailWindow> {
   /// Expanded threads (by thread key).
   final Set<String> _expanded = {};
   bool _sidebarShown = true;
+  MailFilter _filter = MailFilter.all;
   bool _active = true;
 
-  /// The list and the reader have content scrolled under the band.
-  bool _listScrolled = false;
-  bool _readerScrolled = false;
   bool _loading = true;
   String? _banner;
   ComposeRequest? _compose;
@@ -126,10 +125,6 @@ class MailWindowState extends State<MailWindow> {
   bool _retrying = false;
 
   bool get _hasBanner => widget.sampleData || _banner != null;
-
-  /// Where the content starts: under the toolbar (and the banner, if there is one).
-  double get _topInset =>
-      toolbarHeight + (_hasBanner ? MailMetrics.bannerHeight : 0);
 
   MailService get _service => widget.service;
   DateTime get _now => widget.now?.call() ?? DateTime.now();
@@ -308,11 +303,17 @@ class MailWindowState extends State<MailWindow> {
   static String _threadKey(MessageSummary r) =>
       r.thread.isEmpty ? r.id : r.thread;
 
+  bool _passesFilter(MessageSummary r) => switch (_filter) {
+    MailFilter.all => true,
+    MailFilter.unread => r.unread || r.id == _selected,
+    MailFilter.flagged => r.flagged,
+  };
+
   /// The rows grouped by conversation, newest first: the newest message of each thread and
   /// all its messages (newest first).
   List<(MessageSummary, List<MessageSummary>)> get _threads {
     final byThread = <String, List<MessageSummary>>{};
-    for (final r in _rows) {
+    for (final r in _rows.where(_passesFilter)) {
       byThread.putIfAbsent(_threadKey(r), () => []).add(r);
     }
     final out = [
@@ -654,375 +655,185 @@ class MailWindowState extends State<MailWindow> {
   }
 
   @override
-  Widget build(BuildContext context) => SilicaMenuBar(
-    menus: mailMenus(l10n, _menuModel()),
-    child: _window(context),
+  Widget build(BuildContext context) => AmalfiTheme(
+    app: 'Mail',
+    child: SilicaMenuBar(
+      menus: mailMenus(l10n, _menuModel()),
+      child: Builder(builder: _window),
+    ),
   );
 
   Widget _window(BuildContext context) {
     final colors = MailColors.of(context);
-    return CallbackShortcuts(
-      bindings: {
-        // ⌘N, ⌘R, ⇧⌘R, ⇧⌘F and ⌘F are the menu bar's (SilicaMenuBar binds them).
-        const SingleActivator(LogicalKeyboardKey.escape): () {
-          if (_searching || _searchText != null) _endSearch();
+    return WindowActiveScope(
+      active: _active,
+      child: CallbackShortcuts(
+        bindings: {
+          // ⌘N, ⌘R, ⇧⌘R, ⇧⌘F and ⌘F are the menu bar's (SilicaMenuBar binds them).
+          const SingleActivator(LogicalKeyboardKey.escape): () {
+            if (_searching || _searchText != null) _endSearch();
+          },
+          const SingleActivator(LogicalKeyboardKey.delete): _delete,
+          const SingleActivator(LogicalKeyboardKey.backspace): _delete,
+          const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+              _moveSelection(1),
+          const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+              _moveSelection(-1),
+          const SingleActivator(LogicalKeyboardKey.arrowRight): () {
+            if (_selectedRow case final row?) _setExpanded(row, true);
+          },
+          const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
+            if (_selectedRow case final row?) _setExpanded(row, false);
+          },
         },
-        const SingleActivator(LogicalKeyboardKey.delete): _delete,
-        const SingleActivator(LogicalKeyboardKey.backspace): _delete,
-        const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-            _moveSelection(1),
-        const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-            _moveSelection(-1),
-        const SingleActivator(LogicalKeyboardKey.arrowRight): () {
-          if (_selectedRow case final row?) _setExpanded(row, true);
-        },
-        const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
-          if (_selectedRow case final row?) _setExpanded(row, false);
-        },
-      },
-      child: Focus(
-        focusNode: _focus,
-        autofocus: true,
-        child: ColoredBox(
-          color: colors.content,
-          child: Stack(
-            children: [
-              // The full-height sidebar with its own glass bar under the window buttons, the
-              // list and the reader under the toolbar (mail#7).
-              SidebarLayout(
-                width: MailMetrics.sidebarWidth,
-                shown: _sidebarShown ? 1 : 0,
-                sidebar: _sidebar(colors),
-                content: Stack(
-                  children: [
-                    Positioned.fill(child: _content(colors)),
-                    if (_suggesting && _query.text.trim().isNotEmpty)
-                      Positioned(
-                        top: toolbarHeight - 4,
-                        right: 7,
-                        width: MailMetrics.searchFieldWidth,
-                        child: _suggestions(colors),
-                      ),
-                  ],
-                ),
+        child: Focus(
+          focusNode: _focus,
+          autofocus: true,
+          child: ColoredBox(
+            color: colors.content,
+            child: AmalfiAttachedSheet(
+              open: _setup,
+              titleBarHeight: MailMetrics.toolbar,
+              sheet: AccountSetup(
+                key: const ValueKey('account setup'),
+                service: _service,
+                onClose: () {
+                  setState(() => _setup = false);
+                  _focus.requestFocus();
+                },
               ),
-              if (_compose case final request?)
-                Positioned.fill(
-                  child: ComposeSheet(
-                    key: const ValueKey('composer'),
-                    controller: _composer,
-                    request: request,
-                    service: _service,
-                    onClose: () {
-                      setState(() => _compose = null);
-                      _focus.requestFocus();
-                    },
-                  ),
-                ),
-              if (_setup)
-                Positioned.fill(
-                  child: AccountSetup(
-                    key: const ValueKey('account setup'),
-                    service: _service,
-                    onClose: () {
-                      setState(() => _setup = false);
-                      _focus.requestFocus();
-                    },
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// The list and the reader, scrolling under the glass toolbar (mustache-spec R1.9: the
-  /// measured veil over the band, the banner inside it). The list and the reader are two
-  /// scrollables side by side, so each column draws its own 1 pt line under the band once it
-  /// has scrolled (always in an inactive window, as for the toolbar line).
-  // PROVISIONAL: the per-column line is not measured in ML-01 (the reference has one split
-  // view scroll edge per pane, which this follows).
-  Widget _content(MailColors colors) {
-    final veil = ToolbarVeil.of(context);
-    Widget line(bool scrolled, String key) => scrolled || !_active
-        ? ColoredBox(key: ValueKey(key), color: veil.line)
-        : const SizedBox.shrink();
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: ScrollUnderToolbar(
-            active: _active,
-            veil: veil,
-            showLine: false,
-            // At rest the bar shows the list and the reader in their own colours, without a
-            // band (silica-ui#87). Under the banner the band keeps the plain veil.
-            columns: _hasBanner
-                ? null
-                : [
-                    ToolbarVeilColumn(
-                      colors.content,
-                      width: MailMetrics.listWidth,
+              child: Stack(
+                children: [
+                  Positioned.fill(child: _layout(colors)),
+                  if (_hasBanner)
+                    Positioned(
+                      left: _sidebarShown ? MailMetrics.sidebarWidth : 0,
+                      right: 0,
+                      top: MailMetrics.toolbar,
+                      height: MailMetrics.bannerHeight,
+                      child: _bannerBar(colors),
                     ),
-                    ToolbarVeilColumn(colors.separator, width: 1),
-                    ToolbarVeilColumn(colors.reader),
-                  ],
-            toolbar: _toolbar(colors),
-            header: _hasBanner ? _bannerBar(colors) : null,
-            headerHeight: _hasBanner ? MailMetrics.bannerHeight : 0,
-            body: (context, padding) => Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: MailMetrics.listWidth,
-                  child: _scrollEdge(
-                    (v) => _listScrolled = v,
-                    () => _listScrolled,
-                    _list(colors),
-                  ),
-                ),
-                Container(width: 1, color: colors.separator),
-                Expanded(
-                  child: ColoredBox(
-                    color: colors.reader,
-                    child: _scrollEdge(
-                      (v) => _readerScrolled = v,
-                      () => _readerScrolled,
-                      _reader(colors),
+                  if (_suggesting && _query.text.trim().isNotEmpty)
+                    Positioned(
+                      top: MailMetrics.toolbar - 6,
+                      right: 20,
+                      child: _suggestions(),
                     ),
-                  ),
-                ),
-              ],
+                  if (_compose case final request?)
+                    Positioned.fill(
+                      child: ComposeSheet(
+                        key: const ValueKey('composer'),
+                        controller: _composer,
+                        request: request,
+                        service: _service,
+                        onClose: () {
+                          setState(() => _compose = null);
+                          _focus.requestFocus();
+                        },
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
-        Positioned(
-          left: 0,
-          top: _topInset,
-          width: MailMetrics.listWidth,
-          height: 1,
-          child: line(_listScrolled, 'list line'),
-        ),
-        Positioned(
-          left: MailMetrics.listWidth + 1,
-          right: 0,
-          top: _topInset,
-          height: 1,
-          child: line(_readerScrolled, 'reader line'),
-        ),
-      ],
-    );
-  }
-
-  /// Follows whether the column's vertical scrollable has content above its top.
-  Widget _scrollEdge(
-    void Function(bool) set,
-    bool Function() get,
-    Widget child,
-  ) {
-    bool update(ScrollMetrics m, int depth) {
-      if (depth != 0 || m.axis != Axis.vertical) return false;
-      final scrolled = m.extentBefore > 0;
-      if (scrolled != get()) setState(() => set(scrolled));
-      return false;
-    }
-
-    return NotificationListener<ScrollMetricsNotification>(
-      onNotification: (n) => update(n.metrics, n.depth),
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (n) => update(n.metrics, n.depth),
-        child: child,
       ),
     );
   }
+
+  /// The three columns, each with its own toolbar section (kit `Apps/Mail/Inbox`): the
+  /// sidebar (240) running up behind its section, the list (320) and the reader.
+  Widget _layout(MailColors colors) => AmalfiSplitWindowLayout(
+    columns: [
+      if (_sidebarShown)
+        AmalfiWindowColumn(
+          width: MailMetrics.sidebarWidth,
+          toolbar: _sidebarToolbar(),
+          toolbarOverChild: true,
+          ownEdge: true,
+          child: _sidebar(colors),
+        ),
+      AmalfiWindowColumn(
+        width: MailMetrics.listWidth,
+        toolbar: _listToolbar(colors),
+        child: Padding(
+          padding: EdgeInsets.only(top: _bannerInset),
+          child: _list(colors),
+        ),
+      ),
+      AmalfiWindowColumn(
+        toolbar: _readerToolbar(colors),
+        child: ColoredBox(
+          color: colors.reader,
+          child: Padding(
+            padding: EdgeInsets.only(top: _bannerInset),
+            child: _reader(colors),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  /// The space the message bar takes under the toolbar.
+  double get _bannerInset => _hasBanner ? MailMetrics.bannerHeight : 0;
 
   Widget _bannerBar(MailColors colors) => Container(
     key: const ValueKey('banner'),
     color: colors.banner,
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    alignment: Alignment.centerLeft,
     child: Row(
       children: [
         Expanded(
           child: Text(
             _banner ?? l10n.sampleData,
-            style: mailText(12, colors.secondary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AmalfiType.callout(color: colors.secondary),
           ),
         ),
         if (_banner != null)
           GestureDetector(
-            onTap: () => setState(() => _banner = null),
-            child: Symbol(
-              'xmark',
-              color: colors.secondary,
-              size: 12,
-              iconsDir: widget.iconsDir,
-              fallback: '×',
-            ),
-          ),
-      ],
-    ),
-  );
-
-  // MARK: sidebar
-
-  /// The sidebar button (ML-01: 40 × 52 at x 164 of the sidebar; in the toolbar when hidden).
-  Widget _sidebarToggle() => ToolbarScope(
-    active: _active,
-    child: ToolbarCapsule(
-      key: const ValueKey('sidebar toggle'),
-      children: [
-        ToolbarSegment(
-          width: MailMetrics.sidebarToggleWidth - 2,
-          onTap: () => setState(() => _sidebarShown = !_sidebarShown),
-          icon: (color) => Symbol(
-            'sidebar',
-            color: color,
-            iconsDir: widget.iconsDir,
-            fallback: '▯',
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Widget _sidebar(MailColors colors) {
-    final children = <Widget>[];
-    var first = true;
-    for (final account in _accounts) {
-      children.add(
-        Container(
-          height: MailMetrics.sidebarHeading,
-          // PROVISIONAL: the gap above a section after the first (not measured).
-          margin: EdgeInsets.only(top: first ? 0 : 10),
-          padding: const EdgeInsets.only(left: MailMetrics.sidebarHeadingX),
-          alignment: Alignment.centerLeft,
-          child: Text(
-            account.name.isNotEmpty ? account.name : account.address,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: mailText(11, colors.sidebarHeading, weight: FontWeight.w600),
-          ),
-        ),
-      );
-      first = false;
-      for (final m in _mailboxes[account.id] ?? const <Mailbox>[]) {
-        final chosen = m.id == _mailbox?.id && _searchText == null;
-        children.add(
-          GestureDetector(
-            key: ValueKey('mailbox ${m.id}'),
+            key: const ValueKey('banner close'),
             behavior: HitTestBehavior.opaque,
-            onTap: () => _selectMailbox(m),
-            child: SizedBox(
-              height: MailMetrics.sidebarRow,
-              child: Stack(
-                children: [
-                  if (chosen)
-                    Positioned.fill(
-                      left: MailMetrics.sidebarSelectionInset,
-                      right: MailMetrics.sidebarSelectionInset,
-                      child: DecoratedBox(
-                        key: ValueKey('mailbox selection ${m.id}'),
-                        decoration: BoxDecoration(
-                          color: colors.sidebarSelection,
-                          borderRadius: BorderRadius.circular(
-                            MailMetrics.sidebarSelectionRadius,
-                          ),
-                        ),
-                      ),
-                    ),
-                  Positioned(
-                    left: MailMetrics.sidebarIconX,
-                    top: (MailMetrics.sidebarRow - 18) / 2,
-                    child: Symbol(
-                      _mailboxSymbol(m.role),
-                      color: colors.thread,
-                      iconsDir: widget.iconsDir,
-                    ),
-                  ),
-                  Positioned(
-                    left: MailMetrics.sidebarTitleX,
-                    right: MailMetrics.sidebarCountEnd,
-                    top: 0,
-                    bottom: 0,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            mailboxName(m),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: mailText(
-                              13,
-                              colors.text,
-                              weight: chosen ? FontWeight.w600 : null,
-                            ),
-                          ),
-                        ),
-                        if (m.unread > 0)
-                          Semantics(
-                            label: l10n.unreadCount(m.unread),
-                            child: Text(
-                              '${m.unread}',
-                              key: ValueKey('unread ${m.id}'),
-                              style: mailText(12, colors.secondary),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+            onTap: () => setState(() => _banner = null),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: AmalfiGlyph(
+                AmalfiGlyphs.xmark,
+                size: 12,
+                color: colors.secondary,
               ),
             ),
           ),
-        );
-      }
-    }
-    if (_accounts.isEmpty && !_loading) {
-      children.add(
-        Padding(
-          padding: const EdgeInsets.all(18),
-          child: GestureDetector(
-            key: const ValueKey('add account'),
-            onTap: () => setState(() => _setup = true),
-            child: Text(l10n.addAccount, style: mailText(13, colors.link)),
-          ),
-        ),
-      );
-    }
-    // The sidebar's own bar, under the window buttons, carries the sidebar button and moves the
-    // window; the mailboxes start below it and scroll under it (mail#7).
-    return SidebarScrollUnderBar(
-      key: const ValueKey('sidebar'),
-      background: colors.sidebar,
-      bar: Stack(
-        children: [
-          Positioned(
-            left: MailMetrics.sidebarToggleX,
-            top: (toolbarHeight - toolbarCapsuleHeight) / 2,
-            child: _sidebarToggle(),
-          ),
-        ],
-      ),
-      body: (context, padding) =>
-          ListView(padding: padding, children: children),
-    );
-  }
+      ],
+    ),
+  );
 
-  static String _mailboxSymbol(MailboxRole role) => switch (role) {
-    MailboxRole.inbox => 'tray',
-    MailboxRole.drafts => 'doc',
-    MailboxRole.sent => 'paperplane',
-    MailboxRole.archive => 'archive',
-    MailboxRole.junk => 'xmark',
-    MailboxRole.trash => 'trash',
-    MailboxRole.other => 'folder',
-  };
+  // MARK: toolbars
 
-  // MARK: toolbar
+  /// The window buttons are drawn by the compositor over this slot (kit
+  /// `Titlebars/Piece/Controls`, 96 wide).
+  Widget get _controlsSlot =>
+      const SizedBox(width: AmalfiToolbarPieceMetrics.controlsWidth);
 
-  /// Below this width the search field becomes a button (PROVISIONAL threshold; the reference
-  /// collapses the toolbar into an overflow button at the minimum window).
-  static const double _searchFieldMinToolbar = 900;
+  /// The sidebar button (kit `Titlebars/Piece/Sidebar Toggle`): in the sidebar's section, or
+  /// in the list's when the sidebar is hidden.
+  Widget _sidebarToggle() => AmalfiToolbarPiece(
+    child: AmalfiToolbarButton(
+      key: const ValueKey('sidebar toggle'),
+      semanticLabel: l10n.sidebar,
+      icon: const AmalfiGlyph(AmalfiGlyphs.sidebar),
+      onPressed: () => setState(() => _sidebarShown = !_sidebarShown),
+    ),
+  );
+
+  Widget _sidebarToolbar() => WindowDragArea(
+    child: AmalfiToolbar.sidebarSection(
+      key: const ValueKey('sidebar bar'),
+      children: [_controlsSlot, const AmalfiSpacerPiece(), _sidebarToggle()],
+    ),
+  );
 
   Mailbox? _roleBox(MailboxRole role) =>
       _mailboxes[_mailbox?.account]?.where((m) => m.role == role).firstOrNull;
@@ -1034,7 +845,9 @@ class MailWindowState extends State<MailWindow> {
     await _guard(() => _service.move([row.id], junk.id));
   }
 
-  Widget _toolbar(MailColors colors) {
+  /// The title block (kit `Titlebars/Piece/Title + Subtitle`) and the filter group (kit
+  /// `Apps/Mail/Toolbar List`).
+  Widget _listToolbar(MailColors colors) {
     final mailbox = _mailbox;
     final searching = _searchText != null;
     final title = searching
@@ -1048,334 +861,332 @@ class MailWindowState extends State<MailWindow> {
         : unread == 0
         ? l10n.messageCount(_rows.length)
         : l10n.messageCountUnread(_rows.length, unread);
-    final hasMessage = _conversation.isNotEmpty;
-    Widget Function(Color) icon(String name, String fallback) =>
-        (color) => Symbol(
-          name,
-          color: color,
-          iconsDir: widget.iconsDir,
-          fallback: fallback,
-        );
-    return ToolbarScope(
-      active: _active,
-      child: WindowDragArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= _searchFieldMinToolbar;
-            return SizedBox(
-              key: const ValueKey('toolbar'),
-              height: toolbarHeight,
-              child: Row(
-                children: [
-                  if (!_sidebarShown) ...[
-                    const SizedBox(width: MailMetrics.windowButtonsEnd),
-                    _sidebarToggle(),
-                  ],
-                  const SizedBox(width: 12),
-                  Flexible(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: MailMetrics.titleBlockWidth,
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            key: const ValueKey('title'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: mailText(
-                              15,
-                              _active
-                                  ? ToolbarColors.of(context).title
-                                  : ToolbarColors.of(context).titleInactive,
-                              weight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            subtitle,
-                            key: const ValueKey('subtitle'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: mailText(11, colors.secondary),
-                          ),
-                        ],
-                      ),
+    return WindowDragArea(
+      child: AmalfiToolbar.section(
+        key: const ValueKey('list bar'),
+        padding: _sidebarShown
+            ? AmalfiToolbarMetrics.sectionPadding
+            : AmalfiToolbarMetrics.sidebarSectionPadding,
+        children: [
+          if (!_sidebarShown) ...[_controlsSlot, _sidebarToggle()],
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: AmalfiTitlePiece(title: title, subtitle: subtitle),
+            ),
+          ),
+          if (_mailbox != null || searching)
+            AmalfiToolbarPiece(
+              child: KeyedSubtree(
+                key: _filterKey,
+                child: AmalfiActionSegments(
+                  key: const ValueKey('list filter'),
+                  segments: [
+                    AmalfiSegment.icon(
+                      const AmalfiSymbol('filter'),
+                      semanticLabel: l10n.filter,
+                      tooltip: l10n.filter,
+                      // Chosen, the filter shows in the accent while it hides messages.
                     ),
-                  ),
-                  const Spacer(),
-                  ToolbarCapsule(
-                    key: const ValueKey('compose'),
-                    children: [
-                      ToolbarSegment(
-                        width: 38,
-                        onTap: () => compose(ComposeKind.fresh),
-                        icon: icon('compose', '✎'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                  // ML-01: one capsule of 119 (38 / 40 / 39).
-                  ToolbarCapsule(
+                    AmalfiSegment.icon(
+                      const AmalfiSymbol('ellipsis'),
+                      semanticLabel: l10n.more,
+                      tooltip: l10n.more,
+                    ),
+                  ],
+                  selected: {if (_filter != MailFilter.all) 0},
+                  onPressed: (i) => i == 0 ? _filterMenu() : _moreMenu(),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  final GlobalKey _filterKey = GlobalKey(debugLabel: 'list filter group');
+
+  /// Opens a menu under segment `index` of the filter group.
+  Future<void> _menuUnderFilter(
+    int index,
+    List<AmalfiMenuEntry> entries,
+  ) async {
+    final box = _filterKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached) return;
+    final origin = box.localToGlobal(Offset(index * 32.0, box.size.height + 4));
+    await showAmalfiMenu(
+      context: context,
+      position: origin,
+      entries: entries,
+      minWidth: 200,
+    );
+  }
+
+  Future<void> _filterMenu() => _menuUnderFilter(0, [
+    for (final (f, label) in [
+      (MailFilter.all, l10n.showAllMessages),
+      (MailFilter.unread, l10n.showUnread),
+      (MailFilter.flagged, l10n.showFlagged),
+    ])
+      AmalfiMenuAction(
+        label,
+        checked: _filter == f,
+        onSelected: () => setState(() => _filter = f),
+      ),
+  ]);
+
+  Future<void> _moreMenu() => _menuUnderFilter(1, [
+    AmalfiMenuAction(
+      l10n.menuGetNewMail,
+      enabled: _accounts.isNotEmpty,
+      onSelected: () => unawaited(_syncAll()),
+    ),
+    AmalfiMenuAction(
+      l10n.menuMarkAllMessagesAsRead,
+      enabled: _rows.any((r) => r.unread),
+      onSelected: () => unawaited(_markAllRead()),
+    ),
+  ]);
+
+  /// The reader's section (kit `Apps/Mail/Toolbar Reader`): compose, the reply group, the
+  /// triage group and the search field, 16 from the window's edge.
+  Widget _readerToolbar(MailColors colors) {
+    final hasMessage = _conversation.isNotEmpty;
+    return WindowDragArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= MailMetrics.searchFieldMinReader;
+          // Kit `Apps/Mail/Toolbar Reader Search`: while searching the toolbar keeps only
+          // compose and the search field (the groups are in the Message menu).
+          final searchOnly = _searching || _searchText != null;
+          final field = _searchField(colors);
+          return AmalfiToolbar.section(
+            key: const ValueKey('reader bar'),
+            padding: const EdgeInsets.only(left: 12, right: 16),
+            children: [
+              const AmalfiSpacerPiece(),
+              AmalfiToolbarPiece(
+                key: const ValueKey('compose piece'),
+                child: AmalfiToolbarButton(
+                  key: const ValueKey('compose'),
+                  semanticLabel: l10n.newMessage,
+                  icon: const AmalfiGlyph(AmalfiGlyphs.compose),
+                  onPressed: () => compose(ComposeKind.fresh),
+                ),
+              ),
+              if (!searchOnly) ...[
+                AmalfiToolbarPiece(
+                  key: const ValueKey('reply piece'),
+                  child: AmalfiActionSegments(
                     key: const ValueKey('reply group'),
-                    separators: true,
-                    children: [
-                      ToolbarSegment(
-                        key: const ValueKey('reply'),
-                        width: 38,
+                    segments: [
+                      AmalfiSegment.icon(
+                        const AmalfiSymbol('reply'),
+                        semanticLabel: l10n.reply,
+                        tooltip: l10n.reply,
                         enabled: hasMessage,
-                        onTap: () => compose(ComposeKind.reply),
-                        icon: icon('reply', '↩'),
                       ),
-                      ToolbarSegment(
-                        key: const ValueKey('reply all'),
-                        width: 40,
+                      AmalfiSegment.icon(
+                        const AmalfiSymbol('reply-all'),
+                        semanticLabel: l10n.replyAll,
+                        tooltip: l10n.replyAll,
                         enabled: hasMessage,
-                        onTap: () => compose(ComposeKind.replyAll),
-                        icon: icon('reply-all', '⇇'),
                       ),
-                      ToolbarSegment(
-                        key: const ValueKey('forward'),
-                        width: 39,
+                      AmalfiSegment.icon(
+                        const AmalfiSymbol('forward'),
+                        semanticLabel: l10n.forward,
+                        tooltip: l10n.forward,
                         enabled: hasMessage,
-                        onTap: () => compose(ComposeKind.forward),
-                        icon: icon('forward', '↪'),
                       ),
                     ],
+                    onPressed: (i) => compose(switch (i) {
+                      0 => ComposeKind.reply,
+                      1 => ComposeKind.replyAll,
+                      _ => ComposeKind.forward,
+                    }),
                   ),
-                  const SizedBox(width: 8),
-                  // ML-01: one capsule of 121 (38 / 35 / 42).
-                  ToolbarCapsule(
-                    separators: true,
-                    children: [
-                      ToolbarSegment(
-                        key: const ValueKey('archive'),
-                        width: 38,
+                ),
+                AmalfiToolbarPiece(
+                  key: const ValueKey('triage piece'),
+                  child: AmalfiActionSegments(
+                    key: const ValueKey('triage group'),
+                    segments: [
+                      AmalfiSegment.icon(
+                        const AmalfiSymbol('archive'),
+                        semanticLabel: l10n.archive,
+                        tooltip: l10n.archive,
                         // Disabled, not silent, without an Archive mailbox.
                         enabled:
                             hasMessage && _roleBox(MailboxRole.archive) != null,
-                        onTap: _archive,
-                        icon: icon('archive', '▤'),
                       ),
-                      ToolbarSegment(
-                        key: const ValueKey('delete'),
-                        width: 35,
+                      AmalfiSegment.icon(
+                        const AmalfiGlyph(AmalfiGlyphs.trash),
+                        semanticLabel: l10n.delete,
+                        tooltip: l10n.delete,
                         enabled: hasMessage,
-                        onTap: _delete,
-                        icon: icon('trash', '✕'),
                       ),
-                      ToolbarSegment(
-                        key: const ValueKey('junk'),
-                        width: 42,
-                        enabled:
-                            hasMessage && _roleBox(MailboxRole.junk) != null,
-                        onTap: _junk,
-                        icon: icon('xmark', '⊘'),
+                      AmalfiSegment.icon(
+                        const AmalfiSymbol('flag'),
+                        semanticLabel: l10n.flag,
+                        tooltip: l10n.flag,
+                        enabled: hasMessage,
                       ),
                     ],
+                    selected: {if (_selectedRow?.flagged ?? false) 2},
+                    onPressed: (i) => switch (i) {
+                      0 => _archive(),
+                      1 => _delete(),
+                      _ => _toggleFlag(),
+                    },
                   ),
-                  const SizedBox(width: 8),
-                  ToolbarCapsule(
-                    children: [
-                      ToolbarSegment(
-                        key: const ValueKey('flag'),
-                        width: 38,
-                        enabled: hasMessage,
-                        chosen: _selectedRow?.flagged ?? false,
-                        onTap: _toggleFlag,
-                        icon: icon('flag', '⚑'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                  if (wide || _searching)
-                    _searchField(colors)
-                  else
-                    ToolbarCapsule(
-                      key: const ValueKey('search'),
-                      children: [
-                        ToolbarSegment(
-                          width: toolbarCapsuleHeight - 2,
-                          onTap: _startSearch,
-                          icon: icon('search', '⌕'),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(width: 7),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  /// The search field (ML-01: 299 × 38, magnifier and placeholder; a scope token before the
-  /// text after choosing a suggestion).
-  Widget _searchField(MailColors colors) {
-    final focused = _queryFocus.hasFocus;
-    final token = _searchText != null && _scope != SearchScope.all;
-    return GestureDetector(
-      onTap: _startSearch,
-      child: Container(
-        key: const ValueKey('search field'),
-        width: MailMetrics.searchFieldWidth,
-        height: toolbarCapsuleHeight,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: colors.field,
-          borderRadius: BorderRadius.circular(toolbarCapsuleHeight / 2),
-          border: Border.all(
-            color: focused ? colors.unread : colors.separator,
-            width: focused ? 2 : 1,
-          ),
-        ),
-        child: Focus(
-          onFocusChange: (_) => setState(() {}),
-          onKeyEvent: (node, event) {
-            if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.escape) {
-              _endSearch();
-              return KeyEventResult.handled;
-            }
-            return KeyEventResult.ignored;
-          },
-          child: Row(
-            children: [
-              Symbol(
-                'search',
-                color: colors.secondary,
-                size: 15,
-                iconsDir: widget.iconsDir,
-                fallback: '⌕',
-              ),
-              const SizedBox(width: 6),
-              if (token) ...[_scopeToken(colors), const SizedBox(width: 4)],
-              Expanded(
-                child: Stack(
-                  alignment: Alignment.centerLeft,
-                  children: [
-                    if (_query.text.isEmpty)
-                      IgnorePointer(
-                        child: Text(
-                          l10n.search,
-                          style: mailText(13, colors.tertiary),
-                        ),
-                      ),
-                    EditableText(
-                      controller: _query,
-                      focusNode: _queryFocus,
-                      style: mailText(13, colors.text),
-                      cursorColor: colors.text,
-                      backgroundCursorColor: colors.text,
-                      maxLines: 1,
-                      onChanged: (text) => setState(() {
-                        _searching = true;
-                        _suggesting = text.trim().isNotEmpty;
-                      }),
-                      onSubmitted: (_) => _runSearch(),
-                    ),
-                  ],
                 ),
-              ),
-              if (_query.text.isNotEmpty)
-                GestureDetector(
-                  key: const ValueKey('search clear'),
-                  onTap: _endSearch,
-                  child: Symbol(
-                    'xmark',
-                    color: colors.tertiary,
-                    size: 12,
-                    iconsDir: widget.iconsDir,
-                    fallback: '×',
+              ],
+              if (wide || searchOnly)
+                AmalfiToolbarPiece(
+                  key: const ValueKey('search piece'),
+                  child: field,
+                )
+              else
+                AmalfiToolbarPiece(
+                  key: const ValueKey('search piece'),
+                  child: AmalfiToolbarButton(
+                    key: const ValueKey('search'),
+                    semanticLabel: l10n.search,
+                    icon: const AmalfiGlyph(AmalfiGlyphs.search),
+                    onPressed: _startSearch,
                   ),
                 ),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  /// The scope token in the search field: a small grey capsule with the field's name in
-  /// capitals and a chevron (size and colours PROVISIONAL: the token measured in Mustache).
-  Widget _scopeToken(MailColors colors) => Container(
-    key: const ValueKey('search token'),
-    height: 20,
-    padding: const EdgeInsets.symmetric(horizontal: 6),
-    alignment: Alignment.center,
-    decoration: BoxDecoration(
-      color: colors.inactiveSelection,
-      borderRadius: BorderRadius.circular(5),
-    ),
-    child: Text(
-      '${(_scope == SearchScope.sender ? l10n.tokenSender : l10n.tokenSubject).toUpperCase()} ⌄',
-      style: mailText(10, colors.text, weight: FontWeight.w600),
-    ),
-  );
+  /// The search field (kit `Titlebars/Piece/Search` and `Search Token`): 200 wide, 240 with a
+  /// scope token before the text after choosing a suggestion.
+  Widget _searchField(MailColors colors) {
+    final token = _searchText != null && _scope != SearchScope.all;
+    final tokenLabel = _scope == SearchScope.sender
+        ? l10n.tokenSender
+        : l10n.tokenSubject;
+    final width = token ? 240.0 : 200.0;
+    return AmalfiSearchField(
+      key: const ValueKey('search field'),
+      controller: _query,
+      focusNode: _queryFocus,
+      size: AmalfiFieldSize.large,
+      width: width,
+      placeholder: l10n.search,
+      semanticLabel: l10n.search,
+      tokens: [if (token) tokenLabel],
+      onTokensChanged: (tokens) {
+        // Removing the scope token searches everywhere again.
+        if (tokens.isEmpty && token) unawaited(_runSearch());
+      },
+      onChanged: (text) => setState(() {
+        _searching = true;
+        _suggesting = text.trim().isNotEmpty;
+      }),
+      onSubmitted: (_) => _runSearch(),
+      onCleared: _endSearch,
+    );
+  }
 
   /// The suggestions under the search field while typing: the text itself, then the text in
   /// one field.
-  Widget _suggestions(MailColors colors) {
+  Widget _suggestions() {
     final text = _query.text.trim();
-    Widget item(String key, String label, SearchScope scope) => GestureDetector(
-      key: ValueKey(key),
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _runSearch(scope),
-      child: Container(
-        height: 24,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        alignment: Alignment.centerLeft,
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: mailText(13, colors.text),
-        ),
-      ),
-    );
-    // PROVISIONAL panel: the in-window menu look (ML-01 shows a menu under the field).
-    return Container(
+    return SizedBox(
       key: const ValueKey('search suggestions'),
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      decoration: BoxDecoration(
-        color: colors.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colors.separator),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 20,
-            offset: Offset(0, 8),
+      width: 240,
+      child: AmalfiMenu(
+        width: 240,
+        entries: [
+          AmalfiMenuAction(
+            text,
+            onSelected: () => unawaited(_runSearch(SearchScope.all)),
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          item('suggest all', text, SearchScope.all),
-          item(
-            'suggest sender',
+          AmalfiMenuAction(
             '${l10n.senderContains} $text',
-            SearchScope.sender,
+            onSelected: () => unawaited(_runSearch(SearchScope.sender)),
           ),
-          item(
-            'suggest subject',
+          AmalfiMenuAction(
             '${l10n.subjectContains} $text',
-            SearchScope.subject,
+            onSelected: () => unawaited(_runSearch(SearchScope.subject)),
           ),
         ],
       ),
     );
   }
 
+  // MARK: sidebar
+
+  Widget _sidebar(MailColors colors) {
+    final children = <Widget>[];
+    if (_searchText != null) {
+      children
+        ..add(AmalfiSidebarHeader(title: l10n.searchSection))
+        ..add(
+          AmalfiSidebarRow(
+            key: const ValueKey('all mailboxes'),
+            label: l10n.allMailboxes,
+            icon: AmalfiGlyphs.search,
+            badge: '${_rows.length}',
+            selected: true,
+          ),
+        );
+    }
+    for (final account in _accounts) {
+      children.add(
+        AmalfiSidebarHeader(
+          title: account.name.isNotEmpty ? account.name : account.address,
+        ),
+      );
+      for (final m in _mailboxes[account.id] ?? const <Mailbox>[]) {
+        children.add(
+          AmalfiSidebarRow(
+            key: ValueKey('mailbox ${m.id}'),
+            label: mailboxName(m),
+            icon: _mailboxGlyph(m.role),
+            badge: m.unread > 0 ? '${m.unread}' : null,
+            selected: m.id == _mailbox?.id && _searchText == null,
+            onTap: () => _selectMailbox(m),
+          ),
+        );
+      }
+    }
+    if (_accounts.isEmpty && !_loading) {
+      children.add(
+        AmalfiSidebarRow(
+          key: const ValueKey('add account'),
+          label: l10n.addAccount,
+          icon: AmalfiGlyphs.plus,
+          onTap: () => setState(() => _setup = true),
+        ),
+      );
+    }
+    // The panel runs up behind the sidebar's section: its first header sits 8 below it.
+    return AmalfiSidebarPanel(
+      key: const ValueKey('sidebar'),
+      padding: const EdgeInsets.fromLTRB(12, MailMetrics.toolbar + 8, 12, 0),
+      children: children,
+    );
+  }
+
+  static AmalfiGlyphData? _mailboxGlyph(MailboxRole role) => switch (role) {
+    MailboxRole.inbox => AmalfiSymbols.load('tray'),
+    MailboxRole.drafts => AmalfiGlyphs.doc,
+    MailboxRole.sent => AmalfiSymbols.load('paperplane'),
+    MailboxRole.archive => AmalfiSymbols.load('archive'),
+    MailboxRole.junk => AmalfiGlyphs.warning,
+    MailboxRole.trash => AmalfiGlyphs.trash,
+    MailboxRole.other => AmalfiGlyphs.folder,
+  };
+
   // MARK: list
 
-  /// `text` with the search matches on a yellow background.
+  /// `text` with the search matches on the search highlight.
   Widget _marked(
     String text,
     TextStyle style,
@@ -1417,40 +1228,93 @@ class MailWindowState extends State<MailWindow> {
     );
   }
 
+  /// Whether the search text is in the sender or the subject: a best match.
+  bool _bestMatch(MessageSummary r) {
+    final q = _searchText?.toLowerCase();
+    if (q == null || q.isEmpty) return false;
+    return r.subject.toLowerCase().contains(q) ||
+        r.from.display.toLowerCase().contains(q) ||
+        r.from.address.toLowerCase().contains(q);
+  }
+
+  Widget _listHeader(MailColors colors, String title) => SizedBox(
+    height: MailMetrics.listHeader,
+    child: Padding(
+      padding: const EdgeInsets.only(
+        left: MailMetrics.textX,
+        top: MailMetrics.listHeaderTop,
+      ),
+      child: Text(
+        title,
+        key: ValueKey('list header $title'),
+        style: AmalfiType.label(color: colors.tertiary),
+      ),
+    ),
+  );
+
   Widget _list(MailColors colors) {
     final threads = _threads;
     if (threads.isEmpty) {
-      return Padding(
-        padding: EdgeInsets.only(top: _topInset),
-        child: Center(
-          child: Text(
-            _searchText != null ? l10n.noResults : l10n.noMessages,
-            key: const ValueKey('empty list'),
-            style: mailText(14, colors.tertiary),
-          ),
-        ),
+      // An empty mailbox is an empty list (kit `Apps/Mail/Empty Mailbox`); a search or a
+      // filter that hides everything says so.
+      final why = _searchText != null
+          ? l10n.noResults
+          : _filter != MailFilter.all && _rows.isNotEmpty
+          ? l10n.noMessages
+          : null;
+      return SizedBox.expand(
+        key: const ValueKey('empty list'),
+        child: why == null
+            ? null
+            : Center(
+                child: Text(
+                  why,
+                  style: AmalfiType.title3(color: colors.tertiary),
+                ),
+              ),
       );
     }
+    // A search groups the conversations: sender and subject matches first.
+    final searching = _searchText != null;
+    final best = searching
+        ? [
+            for (final t in threads)
+              if (t.$2.any(_bestMatch)) t,
+          ]
+        : const <(MessageSummary, List<MessageSummary>)>[];
+    final rest = searching
+        ? [
+            for (final t in threads)
+              if (!t.$2.any(_bestMatch)) t,
+          ]
+        : threads;
+    final items = <Object>[
+      if (best.isNotEmpty) ...[l10n.bestMatches, ...best],
+      if (searching && rest.isNotEmpty && best.isNotEmpty) l10n.allResults,
+      ...rest,
+    ];
+    final ordered = [
+      for (final i in items)
+        if (i is (MessageSummary, List<MessageSummary>)) i,
+    ];
     return ListView.builder(
       key: const ValueKey('message list'),
-      padding: EdgeInsets.only(top: _topInset),
-      itemCount: threads.length,
+      itemCount: items.length,
       itemBuilder: (context, i) {
-        final (head, members) = threads[i];
+        final item = items[i];
+        if (item is String) return _listHeader(colors, item);
+        final (head, members) = item as (MessageSummary, List<MessageSummary>);
         final expanded =
             members.length > 1 && _expanded.contains(_threadKey(head));
+        final at = ordered.indexWhere((t) => t.$1.id == head.id);
         final nextChosen =
-            i + 1 < threads.length && threads[i + 1].$1.id == _selected;
+            at + 1 < ordered.length && ordered[at + 1].$1.id == _selected;
         final headRow = _row(
           colors,
           head,
           count: members.length,
           expanded: expanded,
-          separator:
-              !expanded &&
-              head.id != _selected &&
-              !nextChosen &&
-              i != threads.length - 1,
+          separator: !expanded && head.id != _selected && !nextChosen,
         );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1460,14 +1324,14 @@ class MailWindowState extends State<MailWindow> {
               duration: expanded
                   ? MailMetrics.threadExpand
                   : MailMetrics.threadCollapse,
-              // PROVISIONAL curve: only the duration was measured.
+              // Assumption: not measured (only the duration was): the plain ease-out.
               curve: Curves.easeOut,
               alignment: Alignment.topCenter,
               child: expanded
                   ? Container(
                       key: ValueKey('thread block ${head.id}'),
                       margin: const EdgeInsets.symmetric(
-                        horizontal: MailMetrics.selectionInset,
+                        horizontal: MailMetrics.selectionInsetX,
                       ),
                       decoration: BoxDecoration(
                         color: colors.threadTint,
@@ -1499,7 +1363,7 @@ class MailWindowState extends State<MailWindow> {
     );
   }
 
-  /// A row of the list (ML-01: 80 pt; the cell is 276 wide at x 16).
+  /// A row of the list (kit `Apps/Mail/List Row/*`: 320 × 84).
   Widget _row(
     MailColors colors,
     MessageSummary row, {
@@ -1514,12 +1378,12 @@ class MailWindowState extends State<MailWindow> {
         : null;
     final onFill = chosen && _active;
     final primary = onFill ? colors.selectionText : colors.text;
-    final secondary = onFill ? colors.selectionSecondary : colors.secondary;
-    final blue = onFill ? colors.selectionText : colors.thread;
+    final secondary = onFill ? colors.selectionText : colors.secondary;
+    final blue = onFill ? colors.selectionText : colors.accent;
     // Inside an expanded block the block is already inset.
-    final inset = inBlock ? 0.0 : MailMetrics.selectionInset;
-    final cellX =
-        MailMetrics.cellX - (inBlock ? MailMetrics.selectionInset : 0);
+    final shift = inBlock ? MailMetrics.selectionInsetX : 0.0;
+    final inset = inBlock ? 0.0 : MailMetrics.selectionInsetX;
+    final textX = MailMetrics.textX - shift;
     final mailbox = _searchText == null
         ? null
         : _mailboxes.values
@@ -1539,28 +1403,25 @@ class MailWindowState extends State<MailWindow> {
           clipBehavior: Clip.none,
           children: [
             if (fill != null)
-              Positioned.fill(
+              Positioned(
                 left: inset,
                 right: inset,
+                top: MailMetrics.selectionInsetY,
+                bottom: MailMetrics.selectionInsetY,
                 child: DecoratedBox(
                   key: ValueKey('selection ${row.id}'),
-                  decoration: BoxDecoration(
+                  decoration: ShapeDecoration(
                     color: fill,
-                    borderRadius: BorderRadius.circular(
-                      MailMetrics.selectionRadius,
+                    shape: const AmalfiSmoothBorder(
+                      radius: MailMetrics.selectionRadius,
                     ),
                   ),
                 ),
               ),
             if (row.unread)
               Positioned(
-                left:
-                    cellX +
-                    MailMetrics.senderX -
-                    MailMetrics.unreadDotBeforeSender -
-                    MailMetrics.unreadDot / 2,
-                // Centred on the sender's 18 pt line.
-                top: MailMetrics.senderY + (18 - MailMetrics.unreadDot) / 2,
+                left: MailMetrics.unreadDotX - shift,
+                top: MailMetrics.unreadDotY,
                 child: Container(
                   key: ValueKey('unread dot ${row.id}'),
                   width: MailMetrics.unreadDot,
@@ -1572,55 +1433,54 @@ class MailWindowState extends State<MailWindow> {
                 ),
               ),
             Positioned(
-              left: cellX + MailMetrics.senderX,
-              width: MailMetrics.cellWidth - MailMetrics.senderX,
+              left: textX,
+              right: MailMetrics.textEnd,
               top: MailMetrics.senderY,
-              height: 18,
+              height: MailMetrics.senderLine,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: _marked(
                       count > 1 ? _threadSenders(row) : row.from.display,
-                      mailText(13, primary, weight: FontWeight.w600),
+                      AmalfiType.headline(color: primary),
                       colors,
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.only(
-                      top: MailMetrics.dateY - MailMetrics.senderY,
-                      left: 6,
-                    ),
+                    padding: const EdgeInsets.only(left: 6),
                     child: Text(
                       mailbox == null
                           ? listDate(row.date, _now)
-                          : '${mailboxName(mailbox)}  ${listDate(row.date, _now)}',
+                          : '${mailboxName(mailbox)} · ${listDate(row.date, _now)}',
                       key: ValueKey('date ${row.id}'),
-                      style: mailText(12, secondary),
+                      style: AmalfiType.callout(color: secondary),
                     ),
                   ),
                 ],
               ),
             ),
             Positioned(
-              left: cellX + MailMetrics.senderX,
-              width: MailMetrics.cellWidth - MailMetrics.senderX,
+              left: textX,
+              right: MailMetrics.textEnd,
               top: MailMetrics.subjectY,
-              height: 16,
+              height: MailMetrics.subjectLine,
               child: Row(
                 children: [
                   Expanded(
-                    child: _marked(row.subject, mailText(13, primary), colors),
+                    child: _marked(
+                      row.subject,
+                      AmalfiType.body(color: primary),
+                      colors,
+                    ),
                   ),
                   if (row.flagged)
                     Padding(
                       padding: const EdgeInsets.only(left: 4),
-                      child: Symbol(
+                      child: AmalfiSymbol(
                         'flag-fill',
                         color: onFill ? colors.selectionText : colors.flagged,
-                        size: 11,
-                        iconsDir: widget.iconsDir,
-                        fallback: '⚑',
+                        size: 12,
                       ),
                     ),
                   if (count > 1)
@@ -1632,36 +1492,33 @@ class MailWindowState extends State<MailWindow> {
                         button: true,
                         expanded: expanded,
                         label: l10n.messageCount(count),
-                        child: SizedBox(
-                          // ML-01: the disclosure is 24 × 16.
-                          height: 16,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const SizedBox(width: 4),
-                              Text('$count', style: mailText(12, blue)),
-                              const SizedBox(width: 3),
-                              Container(
-                                width: 13,
-                                height: 13,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: blue),
-                                ),
-                                child: Transform.rotate(
-                                  angle: expanded ? 1.5708 : 0,
-                                  child: Symbol(
-                                    'chevron-right',
-                                    color: blue,
-                                    size: 8,
-                                    iconsDir: widget.iconsDir,
-                                    fallback: '›',
-                                  ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(width: 4),
+                            Text(
+                              '$count',
+                              style: AmalfiType.callout(color: blue),
+                            ),
+                            const SizedBox(width: 4),
+                            Container(
+                              width: 14,
+                              height: 14,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: blue),
+                              ),
+                              child: Transform.rotate(
+                                angle: expanded ? 1.5708 : 0,
+                                child: AmalfiGlyph(
+                                  AmalfiGlyphs.chevronRight,
+                                  size: 8,
+                                  color: blue,
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -1669,21 +1526,21 @@ class MailWindowState extends State<MailWindow> {
               ),
             ),
             Positioned(
-              left: cellX + MailMetrics.senderX,
-              width: MailMetrics.cellWidth - MailMetrics.senderX,
+              left: textX,
+              right: MailMetrics.textEnd,
               top: MailMetrics.summaryY,
               height: MailMetrics.summaryLine * 2,
               child: _marked(
                 row.preview,
-                mailText(12, secondary, height: MailMetrics.summaryLine / 12),
+                AmalfiType.callout(color: secondary),
                 colors,
                 maxLines: 2,
               ),
             ),
             if (separator)
               Positioned(
-                left: cellX + MailMetrics.senderX,
-                width: MailMetrics.cellWidth - MailMetrics.senderX,
+                left: textX,
+                right: 0,
                 bottom: 0,
                 height: 1,
                 child: ColoredBox(color: colors.separator),
@@ -1707,7 +1564,7 @@ class MailWindowState extends State<MailWindow> {
         : head.from.display;
   }
 
-  /// A child of an expanded thread: sender and one summary line (~45 pt).
+  /// A child of an expanded thread: sender and one summary line (two-line row, 44).
   Widget _childRow(MailColors colors, MessageSummary row) {
     final chosen = row.id == _selected;
     final fill = chosen
@@ -1715,9 +1572,7 @@ class MailWindowState extends State<MailWindow> {
         : null;
     final onFill = chosen && _active;
     final primary = onFill ? colors.selectionText : colors.text;
-    final secondary = onFill ? colors.selectionSecondary : colors.secondary;
-    final x =
-        MailMetrics.cellX - MailMetrics.selectionInset + MailMetrics.senderX;
+    final secondary = onFill ? colors.selectionText : colors.secondary;
     return GestureDetector(
       key: ValueKey('row ${row.id}'),
       behavior: HitTestBehavior.opaque,
@@ -1727,34 +1582,46 @@ class MailWindowState extends State<MailWindow> {
       },
       child: Container(
         height: MailMetrics.threadChildRow,
-        decoration: BoxDecoration(
+        decoration: ShapeDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(MailMetrics.selectionRadius),
+          shape: const AmalfiSmoothBorder(radius: MailMetrics.selectionRadius),
         ),
-        // PROVISIONAL: positions inside the child row (only its height was measured).
-        padding: EdgeInsets.fromLTRB(x, 6, 12, 6),
+        padding: const EdgeInsets.fromLTRB(
+          MailMetrics.textX - MailMetrics.selectionInsetX,
+          4,
+          MailMetrics.textEnd - MailMetrics.selectionInsetX,
+          4,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    row.from.display,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: mailText(13, primary, weight: FontWeight.w600),
+            SizedBox(
+              height: 18,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      row.from.display,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AmalfiType.headline(color: primary),
+                    ),
                   ),
-                ),
-                Text(listDate(row.date, _now), style: mailText(12, secondary)),
-              ],
+                  Text(
+                    listDate(row.date, _now),
+                    style: AmalfiType.callout(color: secondary),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              row.preview,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: mailText(12, secondary),
+            SizedBox(
+              height: 16,
+              child: Text(
+                row.preview,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AmalfiType.callout(color: secondary),
+              ),
             ),
           ],
         ),
@@ -1764,111 +1631,113 @@ class MailWindowState extends State<MailWindow> {
 
   // MARK: reader
 
+  Widget _readerMessage(
+    MailColors colors, {
+    required String title,
+    String? hint,
+    String? detail,
+    Widget? action,
+    Key? key,
+  }) => Center(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            key: key,
+            textAlign: TextAlign.center,
+            style: AmalfiType.title2(color: colors.tertiary),
+          ),
+          if (hint != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              hint,
+              textAlign: TextAlign.center,
+              style: AmalfiType.body(color: colors.secondary),
+            ),
+          ],
+          if (detail != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              detail,
+              key: const ValueKey('engine error'),
+              textAlign: TextAlign.center,
+              style: AmalfiType.callout(color: colors.tertiary),
+            ),
+          ],
+          if (action != null) ...[const SizedBox(height: 16), action],
+        ],
+      ),
+    ),
+  );
+
   Widget _reader(MailColors colors) {
     if (_engineError case final error?) {
-      return Padding(
-        padding: EdgeInsets.only(top: _topInset),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  l10n.engineUnavailable,
-                  key: const ValueKey('engine unavailable'),
-                  textAlign: TextAlign.center,
-                  style: mailText(17, colors.text, weight: FontWeight.w600),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  l10n.engineUnavailableHint,
-                  textAlign: TextAlign.center,
-                  style: mailText(13, colors.secondary),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  error,
-                  key: const ValueKey('engine error'),
-                  textAlign: TextAlign.center,
-                  style: mailText(11, colors.tertiary),
-                ),
-                const SizedBox(height: 14),
-                GestureDetector(
-                  key: const ValueKey('engine retry'),
-                  onTap: _retrying ? null : retryEngine,
-                  child: Text(
-                    _retrying ? l10n.engineStarting : l10n.tryAgain,
-                    style: mailText(
-                      13,
-                      _retrying ? colors.tertiary : colors.link,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+      return _readerMessage(
+        colors,
+        key: const ValueKey('engine unavailable'),
+        title: l10n.engineUnavailable,
+        hint: l10n.engineUnavailableHint,
+        detail: error,
+        action: AmalfiPushButton(
+          key: const ValueKey('engine retry'),
+          label: _retrying ? l10n.engineStarting : l10n.tryAgain,
+          onPressed: _retrying ? null : retryEngine,
         ),
       );
     }
     if (_accounts.isEmpty && !_loading) {
-      return Padding(
-        padding: EdgeInsets.only(top: _topInset),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                l10n.noAccounts,
-                key: const ValueKey('no accounts'),
-                style: mailText(17, colors.text, weight: FontWeight.w600),
-              ),
-              const SizedBox(height: 6),
-              Text(l10n.noAccountsHint, style: mailText(13, colors.secondary)),
-              const SizedBox(height: 14),
-              GestureDetector(
-                onTap: () => setState(() => _setup = true),
-                child: Text(l10n.addAccount, style: mailText(13, colors.link)),
-              ),
-            ],
-          ),
+      return _readerMessage(
+        colors,
+        key: const ValueKey('no accounts'),
+        title: l10n.noAccounts,
+        hint: l10n.noAccountsHint,
+        action: AmalfiPushButton(
+          label: l10n.addAccount,
+          variant: AmalfiPushButtonVariant.primary,
+          onPressed: () => setState(() => _setup = true),
         ),
       );
     }
     if (_conversation.isEmpty) {
-      return Padding(
-        padding: EdgeInsets.only(top: _topInset),
-        child: Center(
+      // Kit `Apps/Mail/Reader Empty`: the title's line starts at y 316 of 668, 5 above the
+      // centre.
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
           child: Text(
             l10n.noSelection,
             key: const ValueKey('no selection'),
-            // ML-01: large light grey text.
-            style: mailText(22, colors.tertiary),
+            style: AmalfiType.title2(color: colors.tertiary),
           ),
         ),
       );
     }
     return ListView(
       key: const ValueKey('reader'),
-      // PROVISIONAL: the margin around the cards (the 8 pt gap between cards is measured).
-      padding: EdgeInsets.fromLTRB(
-        MailMetrics.cardGap,
-        _topInset,
-        MailMetrics.cardGap,
-        MailMetrics.cardGap,
+      padding: const EdgeInsets.fromLTRB(
+        MailMetrics.readerPadding,
+        MailMetrics.readerCountY,
+        MailMetrics.readerPadding,
+        MailMetrics.readerPadding,
       ),
       children: [
-        SizedBox(
-          height: MailMetrics.readerHeader,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                l10n.messageCount(_conversation.length),
-                key: const ValueKey('reader count'),
-                style: mailText(11, colors.secondary),
-              ),
+        Padding(
+          padding: const EdgeInsets.only(
+            left: MailMetrics.readerCountX - MailMetrics.readerPadding,
+            bottom:
+                MailMetrics.readerCardsTop -
+                MailMetrics.readerCountY -
+                MailMetrics.readerCountLine,
+          ),
+          child: SizedBox(
+            height: MailMetrics.readerCountLine,
+            child: Text(
+              l10n.messageCount(_conversation.length),
+              key: const ValueKey('reader count'),
+              style: AmalfiType.callout(color: colors.secondary),
             ),
           ),
         ),
@@ -1893,211 +1762,243 @@ class MailWindowState extends State<MailWindow> {
   }
 
   bool get _darkAppearance =>
-      MediaQuery.maybePlatformBrightnessOf(context) == Brightness.dark;
+      AmalfiTheme.of(context).brightness == Brightness.dark;
 
   /// HTML mail keeps its white page in the dark appearance (ML-01b), as the sender designed
-  /// it; plain text follows the appearance. The page's padding and corners are PROVISIONAL.
+  /// it; plain text follows the appearance. The page's padding and corners are an
+  /// assumption (not measured).
   Widget _htmlPage(Widget body) => _darkAppearance
       ? Container(
           key: const ValueKey('html page'),
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
+          decoration: ShapeDecoration(
             color: const Color(0xFFFFFFFF),
-            borderRadius: BorderRadius.circular(6),
+            shape: const AmalfiSmoothBorder(radius: 8),
           ),
           child: body,
         )
       : body;
 
+  /// A message card (kit `Apps/Mail/Reader`): a 12 pt raised card with a border, the header
+  /// 80 tall (avatar, sender, subject, recipients, date), a separator, the body.
   Widget _message(MailColors colors, Message m) {
     final allowed = _remoteAllowed.contains(m.id);
     final html = m.html.trim();
     final remote =
         html.isNotEmpty && (m.remoteContent || hasRemoteContent(html));
     String names(List<Address> list) => list.map((a) => a.display).join(', ');
-    final body = mailText(13.5, colors.text, height: 1.45);
-    return Container(
+    final body = AmalfiType.body(color: colors.text);
+    return DecoratedBox(
       key: ValueKey('card ${m.id}'),
-      padding: const EdgeInsets.all(MailMetrics.cardPadding),
-      decoration: BoxDecoration(
+      decoration: ShapeDecoration(
         color: colors.card,
-        borderRadius: BorderRadius.circular(MailMetrics.cardRadius),
+        shape: AmalfiSmoothBorder(
+          radius: MailMetrics.cardRadius,
+          side: BorderSide(
+            color: colors.border,
+            strokeAlign: BorderSide.strokeAlignInside,
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: MailMetrics.avatar,
-                height: MailMetrics.avatar,
-                alignment: Alignment.center,
-                // PROVISIONAL gradient: "gray-blue" in ML-01.
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0xFFA3ADBC), Color(0xFF7D8798)],
-                  ),
-                ),
-                child: Text(
-                  initials(m.from),
-                  style: mailText(
-                    13,
-                    const Color(0xFFFFFFFF),
-                    weight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      m.from.display,
-                      style: mailText(13, colors.text, weight: FontWeight.w600),
-                    ),
-                    Text(
-                      m.subject,
-                      key: ValueKey('subject ${m.id}'),
-                      style: mailText(13, colors.text),
-                    ),
-                    if (m.to.isNotEmpty)
-                      Text(
-                        '${l10n.to}: ${names(m.to)}',
-                        style: mailText(12, colors.secondary),
-                      ),
-                    if (m.cc.isNotEmpty)
-                      Text(
-                        '${l10n.cc}: ${names(m.cc)}',
-                        style: mailText(12, colors.secondary),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    readerDate(m.date, _now),
-                    style: mailText(12, colors.secondary),
-                  ),
-                  if (m.attachments.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Symbol(
-                        'paperclip',
-                        color: colors.secondary,
-                        size: 13,
-                        iconsDir: widget.iconsDir,
-                        fallback: '⌇',
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-          Padding(
-            // PROVISIONAL: the space around the header separator.
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Container(height: 1, color: colors.separator),
-          ),
-          if (remote && !allowed)
-            Container(
-              key: ValueKey('remote banner ${m.id}'),
-              margin: const EdgeInsets.only(bottom: 14),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: BoxDecoration(
-                color: colors.banner,
-                borderRadius: BorderRadius.circular(8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: MailMetrics.cardHeader,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.only(
+                left: MailMetrics.cardPadding,
+                right: MailMetrics.cardPadding,
+                top: MailMetrics.cardTextY,
+                bottom: 12,
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      l10n.remoteContentBlocked,
-                      style: mailText(12, colors.secondary),
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      top: MailMetrics.avatarTop - MailMetrics.cardTextY,
+                    ),
+                    child: Container(
+                      width: MailMetrics.avatar,
+                      height: MailMetrics.avatar,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: colors.accentSoft,
+                      ),
+                      child: Text(
+                        initials(m.from),
+                        style: AmalfiType.label(color: colors.accent),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  GestureDetector(
-                    key: ValueKey('load remote ${m.id}'),
-                    onTap: () => setState(() => _remoteAllowed.add(m.id)),
-                    child: Text(
-                      l10n.loadRemoteContent,
-                      style: mailText(12, colors.link, weight: FontWeight.w600),
+                  const SizedBox(
+                    width:
+                        MailMetrics.cardTextX -
+                        MailMetrics.cardPadding -
+                        MailMetrics.avatar,
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          m.from.display,
+                          style: AmalfiType.headline(color: colors.text),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          m.subject,
+                          key: ValueKey('subject ${m.id}'),
+                          style: AmalfiType.body(color: colors.text),
+                        ),
+                        if (m.to.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '${l10n.to}: ${names(m.to)}',
+                            style: AmalfiType.callout(color: colors.secondary),
+                          ),
+                        ],
+                        if (m.cc.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '${l10n.cc}: ${names(m.cc)}',
+                            style: AmalfiType.callout(color: colors.secondary),
+                          ),
+                        ],
+                      ],
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        readerDate(m.date, _now),
+                        style: AmalfiType.callout(color: colors.secondary),
+                      ),
+                      if (m.attachments.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: AmalfiSymbol(
+                            'paperclip',
+                            color: colors.secondary,
+                            size: 14,
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
             ),
-          if (html.isNotEmpty)
-            _htmlPage(
-              HtmlBody(
-                key: ValueKey('html ${m.id}'),
-                html: html,
-                style: _darkAppearance
-                    ? mailText(13.5, MailColors.light.text, height: 1.45)
-                    : body,
-                linkColor: _darkAppearance
-                    ? MailColors.light.link
-                    : colors.link,
-                quoteColor: _darkAppearance
-                    ? MailColors.light.secondary
-                    : colors.secondary,
-                allowRemote: allowed,
-                onLink: _openLink,
-              ),
-            )
-          else
-            Text(m.text, key: ValueKey('text ${m.id}'), style: body),
-          if (m.attachments.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+          ),
+          SizedBox(height: 1, child: ColoredBox(color: colors.separator)),
+          Padding(
+            padding: const EdgeInsets.all(MailMetrics.cardPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final a in m.attachments)
-                  GestureDetector(
-                    key: ValueKey('attachment ${a.id}'),
-                    onTap: () => _saveAttachment(m, a),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.banner,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Symbol(
-                            'paperclip',
-                            color: colors.secondary,
-                            size: 13,
-                            iconsDir: widget.iconsDir,
-                            fallback: '⌇',
+                if (remote && !allowed)
+                  Container(
+                    key: ValueKey('remote banner ${m.id}'),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: ShapeDecoration(
+                      color: colors.banner,
+                      shape: const AmalfiSmoothBorder(radius: 9),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.remoteContentBlocked,
+                            style: AmalfiType.callout(color: colors.secondary),
                           ),
-                          const SizedBox(width: 6),
-                          Text(a.name, style: mailText(12, colors.text)),
-                          const SizedBox(width: 6),
-                          Text(
-                            fileSize(a.size),
-                            style: mailText(11, colors.secondary),
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 12),
+                        AmalfiPushButton(
+                          key: ValueKey('load remote ${m.id}'),
+                          label: l10n.loadRemoteContent,
+                          size: AmalfiControlSize.small,
+                          onPressed: () =>
+                              setState(() => _remoteAllowed.add(m.id)),
+                        ),
+                      ],
                     ),
                   ),
+                if (html.isNotEmpty)
+                  _htmlPage(
+                    HtmlBody(
+                      key: ValueKey('html ${m.id}'),
+                      html: html,
+                      style: _darkAppearance
+                          ? AmalfiType.body(color: MailColors.light.text)
+                          : body,
+                      linkColor: _darkAppearance
+                          ? MailColors.light.link
+                          : colors.link,
+                      quoteColor: _darkAppearance
+                          ? MailColors.light.secondary
+                          : colors.secondary,
+                      allowRemote: allowed,
+                      onLink: _openLink,
+                    ),
+                  )
+                else
+                  Text(m.text, key: ValueKey('text ${m.id}'), style: body),
+                if (m.attachments.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final a in m.attachments)
+                        GestureDetector(
+                          key: ValueKey('attachment ${a.id}'),
+                          onTap: () => _saveAttachment(m, a),
+                          child: Container(
+                            height: 28,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: ShapeDecoration(
+                              color: colors.banner,
+                              shape: const AmalfiSmoothBorder(radius: 9),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AmalfiSymbol(
+                                  'paperclip',
+                                  color: colors.secondary,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  a.name,
+                                  style: AmalfiType.callout(color: colors.text),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  fileSize(a.size),
+                                  style: AmalfiType.caption(
+                                    color: colors.secondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
-          ],
+          ),
         ],
       ),
     );
