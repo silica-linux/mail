@@ -82,23 +82,23 @@ void main() {
     await tester.pumpAndSettle();
     // The kit ends the section 8 from the window's edge; components.md puts the toolbar's
     // last control 20 from it (padding 16 + piece 4), so every frame is 8 left of the kit's
-    // (compose 260, reply 300, triage 404, search 508 in the reader's own coordinates).
+    // (compose 228, reply 272, triage 390, search 508 in the reader's own coordinates).
     const shift = 8.0;
     expect(
       rectOf(tester, find.byKey(const ValueKey('compose'))),
-      at(560 + 260 - shift, 10, 32, 32),
+      at(560 + 228 - shift, 8, 36, 36),
     );
     expect(
       rectOf(tester, find.byKey(const ValueKey('reply group'))),
-      at(560 + 300 - shift, 10, 96, 32),
+      at(560 + 272 - shift, 8, 110, 36),
     );
     expect(
       rectOf(tester, find.byKey(const ValueKey('triage group'))),
-      at(560 + 404 - shift, 10, 96, 32),
+      at(560 + 390 - shift, 8, 110, 36),
     );
     expect(
       rectOf(tester, find.byKey(const ValueKey('search field'))),
-      at(560 + 508 - shift, 10, 200, 32),
+      at(560 + 508 - shift, 8, 200, 36),
     );
   });
 
@@ -106,23 +106,23 @@ void main() {
     tester,
   ) async {
     await pump(tester);
-    // Mail Filter: a 64 × 32 group at x 244 of the 320 pt section, y 10.
+    // Mail Filter: a 73 × 36 group at x 235 of the 320 pt section, y 8.
     expect(
-      rectOf(tester, find.byKey(const ValueKey('list bar'))).left + 244,
-      240 + 244,
+      rectOf(tester, find.byKey(const ValueKey('list bar'))).left + 235,
+      240 + 235,
     );
     final filter = find.descendant(
       of: find.byKey(const ValueKey('list bar')),
       matching: find.byType(AmalfiActionSegments),
     );
-    expect(rectOf(tester, filter), at(240 + 244, 10, 64, 32));
+    expect(rectOf(tester, filter), at(240 + 235, 8, 73, 36));
     // Title + Subtitle: the text block starts at x 20 (piece at 12, padding 8).
     final title = find.descendant(
       of: find.byType(AmalfiTitlePiece),
       matching: find.text('Inbox'),
     );
-    expect(rectOf(tester, title).top, greaterThanOrEqualTo(10));
-    expect(rectOf(tester, title).bottom, lessThanOrEqualTo(42));
+    expect(rectOf(tester, title).top, greaterThanOrEqualTo(8));
+    expect(rectOf(tester, title).bottom, lessThanOrEqualTo(44));
   });
 
   testWidgets('Apps/Mail/List Row: 84 tall, text at x 24, separator, selection', (
@@ -369,7 +369,7 @@ void main() {
     await pump(tester, size: MailMetrics.minimumWindow + const Offset(0, 500));
     expect(find.byKey(const ValueKey('search field')), findsNothing);
     final button = rectOf(tester, find.byKey(const ValueKey('search')));
-    expect(button.size, const Size(32, 32));
+    expect(button.size, const Size(36, 36));
     // Searching takes the room of the reply and triage groups.
     await tester.tap(find.byKey(const ValueKey('search')));
     await tester.pumpAndSettle();
@@ -388,7 +388,7 @@ void main() {
     // the window buttons, then the sidebar button.
     expect(rectOf(tester, find.byKey(const ValueKey('list bar'))).left, 0);
     final toggle = rectOf(tester, find.byKey(const ValueKey('sidebar toggle')));
-    expect(toggle, at(96 + 4, 10, 32, 32));
+    expect(toggle, at(96 + 4, 8, 36, 36));
   });
 
   testWidgets('Apps/Mail/Compose: 832 × 720, rows of 40, From in the header', (
@@ -400,14 +400,14 @@ void main() {
     final panel = rectOf(tester, find.byKey(const ValueKey('composer panel')));
     expect(panel.size, const Size(832, 720));
     Rect rel(Rect r) => r.shift(-panel.topLeft);
-    // Toolbar Compose: controls 96 wide at x 4, Send 28 × 28 at (780, 12).
+    // Toolbar Compose: controls 96 wide at x 4, Send 36 × 36 at (772, 8).
     expect(
       rel(rectOf(tester, find.byType(AmalfiControlsPiece))),
       at(4, 0, 96, 52),
     );
     expect(
       rel(rectOf(tester, find.byKey(const ValueKey('compose send')))),
-      at(780, 12, 28, 28),
+      at(772, 8, 36, 36),
     );
     // Labels at x 24, rows 40 apart from y 52 (labels 16 tall at y 64, 104, 144, 184).
     for (final (label, y) in [

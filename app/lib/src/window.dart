@@ -1189,7 +1189,7 @@ class MailWindowState extends State<MailWindow> {
       key: const ValueKey('search field'),
       controller: _query,
       focusNode: _queryFocus,
-      size: AmalfiFieldSize.large,
+      size: AmalfiFieldSize.toolbar,
       width: width,
       placeholder: l10n.search,
       semanticLabel: l10n.search,
@@ -1625,8 +1625,8 @@ class MailWindowState extends State<MailWindow> {
                             ),
                             const SizedBox(width: 4),
                             Container(
-                              width: 14,
-                              height: 14,
+                              width: 18,
+                              height: 18,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
@@ -1636,7 +1636,7 @@ class MailWindowState extends State<MailWindow> {
                                 angle: expanded ? 1.5708 : 0,
                                 child: AmalfiGlyph(
                                   AmalfiGlyphs.chevronRight,
-                                  size: 8,
+                                  size: 12,
                                   color: blue,
                                 ),
                               ),

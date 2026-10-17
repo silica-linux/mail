@@ -12,16 +12,16 @@ abstract final class MailMetrics {
   /// The smallest window: the sidebar (240), the list (320) and a reader wide enough for the
   /// toolbar's compose button, reply group, triage group and the search button (the kit
   /// draws the window at 1280 × 720).
-  static const Size minimumWindow = Size(888, 200);
+  static const Size minimumWindow = Size(924, 200);
 
   // Window (kit `Apps/Mail/Inbox`: sidebar 240 · list 320 · reader 720 at 1280).
   static const double toolbar = AmalfiToolbarMetrics.toolbarHeight;
   static const double sidebarWidth = AmalfiWindowMetrics.sidebarWidth;
   static const double listWidth = 320;
 
-  /// Below this reader width the toolbar's search field becomes a button: compose 40, reply
-  /// group 104, triage group 104, field 200 (240 with a token) and the section's padding.
-  static const double searchFieldMinReader = 484;
+  /// Below this reader width the toolbar's search field becomes a button: compose 44, reply
+  /// group 118, triage group 118, field 208 (248 with a token) and the section's padding.
+  static const double searchFieldMinReader = 516;
 
   // Message list (kit `Apps/Mail/List Row/*`, 320 × 84).
   static const double listRow = 84;
@@ -103,8 +103,8 @@ abstract final class MailMetrics {
   static const double composerBodyInset = 24;
   static const double composerBodyTop = 20;
 
-  /// The Send button (kit `Titlebars/Piece/Mail Send`): a 28 pt circle.
-  static const double sendButton = 28;
+  /// The Send button (kit `Titlebars/Piece/Mail Send`): a 36 pt circle.
+  static const double sendButton = 36;
 
   /// Composer motion (ML-01b): it appears opaque at 98.8 % and reaches 100 % in ~80 ms with a
   /// 1 pt overshoot; closing an empty one fades and blurs while shrinking slightly towards

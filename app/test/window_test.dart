@@ -516,25 +516,25 @@ void main() {
   testWidgets('the sidebar runs up behind its own section, with the sidebar '
       'button (mail#7)', (tester) async {
     await pump(tester);
-    // Apps/Mail/Toolbar Sidebar: 240 × 52, the button 40 wide at x 192 (the glass
-    // button itself 32 × 32 at x 196, y 10).
+    // Apps/Mail/Toolbar Sidebar: 240 × 52, the piece 44 wide at x 188 (the glass
+    // button itself 36 × 36 at x 192, y 8).
     expect(
       tester.getRect(find.byKey(const ValueKey('sidebar bar'))),
       const Rect.fromLTWH(0, 0, MailMetrics.sidebarWidth, 52),
     );
     expect(
       tester.getRect(find.byKey(const ValueKey('sidebar toggle'))),
-      const Rect.fromLTWH(196, 10, 32, 32),
+      const Rect.fromLTWH(192, 8, 36, 36),
     );
     // Apps/Mail/Sidebar: full height, the first header 60 from the top.
     final panel = find.byKey(const ValueKey('sidebar'));
     expect(tester.getRect(panel), const Rect.fromLTWH(0, 0, 240, 800));
-    // Rows are 216 × 28 at x 12 with a pitch of 32.
+    // Rows are 216 × 32 at x 12, with no gap between them.
     final first = tester.getRect(find.byKey(const ValueKey('mailbox inbox')));
     final second = tester.getRect(find.byKey(const ValueKey('mailbox drafts')));
     expect(first.left, 12);
-    expect(first.size, const Size(216, 28));
-    expect(first.top, 60 + 28 + 4);
+    expect(first.size, const Size(216, 32));
+    expect(first.top, 60 + 28);
     expect(second.top - first.top, 32);
   });
 

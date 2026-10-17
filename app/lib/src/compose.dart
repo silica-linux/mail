@@ -577,7 +577,7 @@ class _ComposeSheetState extends State<ComposeSheet>
     );
   }
 
-  /// Send (kit `Titlebars/Piece/Mail Send`): a 28 pt accent circle with a white upward arrow,
+  /// Send (kit `Titlebars/Piece/Mail Send`): a 36 pt accent circle with a white upward arrow,
   /// dimmed until there is a recipient.
   Widget _sendButton() {
     final ready = !_sending && _toAll.isNotEmpty;
@@ -746,7 +746,7 @@ class _ComposeSheetState extends State<ComposeSheet>
   );
 }
 
-/// The Send button: a 28 pt accent circle with a white arrow; hovered or pressed it takes
+/// The Send button: a 36 pt accent circle with a white arrow; hovered or pressed it takes
 /// the pressed accent; dimmed (35 %) it still answers, so that Send without a recipient says
 /// why it did nothing.
 class _SendButton extends StatefulWidget {
@@ -796,7 +796,7 @@ class _SendButtonState extends State<_SendButton> {
             ),
             child: AmalfiSymbol(
               'arrow-up',
-              size: 16,
+              size: 20,
               color: colors.onAccent,
               fallback: Text(
                 '↑',

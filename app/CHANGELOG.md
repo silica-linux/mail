@@ -9,7 +9,7 @@
   list's toolbar, search results grouped under Best Matches and All Results, a Search section in
   the sidebar, recipients as tokens, a "save as a draft?" alert when closing a changed message
   (Save waits for drafts, mail#10). The Junk toolbar button moved to the Message menu (the kit's
-  triage group has three buttons); the window's minimum size is 888 × 200.
+  triage group has three buttons); the window's minimum size is 924 × 200 (was 888 before the 36 pt toolbar controls of silica_ui 1.0.0-alpha.7).
 - Menus in Silica's menu bar (silica-desktop#175): the nine menus of the reference (app, File,
   Edit, View, Mailbox, Message, Format, Window, Help) with their items, shortcuts and states,
   published with silica_ui's `SilicaMenuBar` (silica_ui 0.34.1). New Message, Reply, Reply All,
