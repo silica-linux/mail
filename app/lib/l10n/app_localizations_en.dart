@@ -129,6 +129,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancel => 'Cancel';
 
   @override
+  String get attachments => 'Attachments';
+
+  @override
   String attachmentCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

@@ -2,6 +2,7 @@
 // all and a forward start from the message in the reader, with the quoted text below.
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
@@ -39,6 +40,39 @@ String formatAddresses(List<Address> list) => list
     .map((a) => a.name.isEmpty ? a.address : '${a.name} <${a.address}>')
     .join(', ');
 
+/// The files named by a launch's arguments: paths or `file://` URIs. Options, other URI
+/// schemes and anything [exists] rejects (by default: not a file on disk) are dropped.
+List<String> attachmentsFromArgs(
+  List<String> args, {
+  bool Function(String path)? exists,
+}) {
+  final check = exists ?? (String p) => File(p).existsSync();
+  final out = <String>[];
+  for (final a in args) {
+    if (a.isEmpty || a.startsWith('-')) continue;
+    String path;
+    if (a.startsWith('file:')) {
+      try {
+        path = Uri.parse(a).toFilePath();
+      } on Object {
+        continue;
+      }
+    } else if (a.contains('://')) {
+      continue;
+    } else {
+      path = a;
+    }
+    if (check(path) && !out.contains(path)) out.add(path);
+  }
+  return out;
+}
+
+/// The file name of a path.
+String attachmentName(String path) {
+  final i = path.lastIndexOf('/');
+  return i < 0 ? path : path.substring(i + 1);
+}
+
 /// What the composer opens with.
 class ComposeRequest {
   const ComposeRequest({
@@ -48,6 +82,7 @@ class ComposeRequest {
     this.subject = '',
     this.text = '',
     this.inReplyTo,
+    this.attachments = const [],
   });
 
   factory ComposeRequest.from({
@@ -55,9 +90,10 @@ class ComposeRequest {
     required Account account,
     required Message? message,
     required DateTime now,
+    List<String> attachments = const [],
   }) {
     if (message == null || kind == ComposeKind.fresh) {
-      return ComposeRequest(account: account);
+      return ComposeRequest(account: account, attachments: attachments);
     }
     String prefixed(String prefix) {
       final s = message.subject;
@@ -106,6 +142,9 @@ class ComposeRequest {
   final String subject;
   final String text;
   final String? inReplyTo;
+
+  /// Paths of the files attached when the composer opens (a share, Open With).
+  final List<String> attachments;
 }
 
 /// The composer's actions for the menu bar (Message › Send, File › Close): the sheet attaches
@@ -114,6 +153,10 @@ class ComposeController extends ChangeNotifier {
   Future<void> Function()? _send;
   Future<void> Function()? _close;
   bool _canSend = false;
+  void Function(List<String> paths)? _addFiles;
+
+  /// Attaches more files to the open message (files arriving while it is being written).
+  void addAttachments(List<String> paths) => _addFiles?.call(paths);
 
   /// The composer has a recipient (the send button is not dimmed).
   bool get canSend => _canSend;
@@ -130,6 +173,7 @@ class ComposeController extends ChangeNotifier {
   }
 
   void _detach() {
+    _addFiles = null;
     _send = null;
     _close = null;
     _canSend = false;
@@ -230,9 +274,20 @@ class _ComposeSheetState extends State<ComposeSheet>
     _toFocus.addListener(_leftField);
     _ccFocus.addListener(_leftField);
     widget.controller?._attach(_send, _close);
+    widget.controller?._addFiles = _addAttachments;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.controller?._setCanSend(_toAll.isNotEmpty);
       (_toTokens.isEmpty ? _toFocus : _bodyFocus).requestFocus();
+    });
+  }
+
+  late final List<String> _attachments = [...widget.request.attachments];
+
+  void _addAttachments(List<String> paths) {
+    setState(() {
+      for (final p in paths) {
+        if (!_attachments.contains(p)) _attachments.add(p);
+      }
     });
   }
 
@@ -308,6 +363,7 @@ class _ComposeSheetState extends State<ComposeSheet>
         cc: _ccAll,
         subject: _subject.text,
         text: _body.text,
+        attachments: _attachments,
         inReplyTo: widget.request.inReplyTo,
       ),
     );
@@ -361,7 +417,8 @@ class _ComposeSheetState extends State<ComposeSheet>
     return formatAddresses(_toAll) != formatAddresses(r.to) ||
         formatAddresses(_ccAll) != formatAddresses(r.cc) ||
         _subject.text != r.subject ||
-        _body.text != r.text;
+        _body.text != r.text ||
+        _attachments.length != r.attachments.length;
   }
 
   /// Closing (the close button, Escape, Cmd+W): a changed message asks first, as the
@@ -642,6 +699,24 @@ class _ComposeSheetState extends State<ComposeSheet>
                     'compose subject',
                   ),
                 ),
+                if (_attachments.isNotEmpty)
+                  _row(
+                    colors,
+                    l10n.attachments,
+                    SizedBox(
+                      height: MailMetrics.composerField,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          key: const ValueKey('compose attachments'),
+                          _attachments.map(attachmentName).join(', '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AmalfiType.body(color: colors.text),
+                        ),
+                      ),
+                    ),
+                  ),
                 _row(
                   colors,
                   l10n.from,

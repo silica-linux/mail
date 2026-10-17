@@ -1,16 +1,18 @@
 // Mail, the mail app of Silica.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:silica_ui/silica_ui.dart';
 
+import 'src/compose.dart';
 import 'src/l10n.dart';
 import 'src/service.dart';
 import 'src/style.dart';
 import 'src/window.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   // The toolbar is unified with the window: Ossido draws only the window buttons.
   SilicaWindow.setFullSizeContent(AmalfiToolbarMetrics.toolbarHeight).ignore();
@@ -19,6 +21,10 @@ Future<void> main() async {
   // Mail keeps running when its window closes; a reopen shows the main window again on the
   // same mailbox (APP-LC). The engine connection and the mailbox outlive the window.
   final lastMailbox = ValueNotifier<String?>(null);
+  // Files named on the command line (Open With, a share) open a message with them attached;
+  // later launches reach the running app through the embedder.
+  final opened = StreamController<List<String>>.broadcast();
+  SilicaApp.onOpen = (files) => opened.add(attachmentsFromArgs(files));
   runApp(
     AppLocalizationsScope(
       // WidgetsApp gives the overlay (menus, tooltips, popovers) and the text-editing
@@ -36,6 +42,8 @@ Future<void> main() async {
             engineError: connection.error,
             sampleData: connection.sample,
             lastMailbox: lastMailbox,
+            initialFiles: attachmentsFromArgs(args),
+            openedFiles: opened.stream,
           ),
         ),
       ),

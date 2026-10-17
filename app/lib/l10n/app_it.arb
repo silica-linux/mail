@@ -33,6 +33,7 @@
   "subject": "Oggetto",
   "send": "Invia",
   "cancel": "Annulla",
+  "attachments": "Allegati",
   "attachmentCount": "{count, plural, =1{1 allegato} other{{count} allegati}}",
   "remoteContentBlocked": "Immagini e altri contenuti dalla rete non sono stati caricati, per proteggere la tua privacy.",
   "loadRemoteContent": "Carica i contenuti",

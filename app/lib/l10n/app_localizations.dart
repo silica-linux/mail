@@ -296,6 +296,12 @@ abstract class AppLocalizations {
   /// **'Cancel'**
   String get cancel;
 
+  /// Label of the attachments row in the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments'**
+  String get attachments;
+
   /// Above the attachments in the reader.
   ///
   /// In en, this message translates to:

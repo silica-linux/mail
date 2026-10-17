@@ -58,7 +58,16 @@ class MailWindow extends StatefulWidget {
     this.sampleData = false,
     this.openUrl,
     this.lastMailbox,
+    this.initialFiles = const [],
+    this.openedFiles,
   });
+
+  /// Files to attach to a new message as the window opens (the launch's arguments).
+  final List<String> initialFiles;
+
+  /// Files that arrive while the app runs (a second launch, a share): each batch opens a
+  /// new message with them, or joins the one being written.
+  final Stream<List<String>>? openedFiles;
 
   final MailService service;
 
@@ -143,6 +152,8 @@ class MailWindowState extends State<MailWindow> {
     _events = _service.events.listen(_onEvent);
     _composer.addListener(_menusChanged);
     _engineError = widget.engineError;
+    _pendingFiles = widget.initialFiles;
+    _files = widget.openedFiles?.listen(attachFiles);
     if (_engineError == null) {
       _loadAccounts();
     } else {
@@ -181,6 +192,7 @@ class MailWindowState extends State<MailWindow> {
     _composer.dispose();
     _markRead?.cancel();
     _events?.cancel();
+    _files?.cancel();
     _lifecycle.dispose();
     _focus.dispose();
     _query.dispose();
@@ -235,6 +247,11 @@ class MailWindowState extends State<MailWindow> {
           boxes.values.expand((l) => l).firstOrNull;
     });
     await _loadRows();
+    if (_pendingFiles.isNotEmpty && mounted) {
+      final files = _pendingFiles;
+      _pendingFiles = const [];
+      attachFiles(files);
+    }
   });
 
   Future<void> _refreshMailboxes(String account) => _guard(() async {
@@ -430,7 +447,24 @@ class MailWindowState extends State<MailWindow> {
     );
   }
 
-  void compose(ComposeKind kind) {
+  StreamSubscription<List<String>>? _files;
+
+  /// Files waiting for the first list of accounts.
+  List<String> _pendingFiles = const [];
+
+  /// Attaches [paths] to the message being written, or starts one with them.
+  void attachFiles(List<String> paths) {
+    if (paths.isEmpty) return;
+    if (_compose != null) {
+      _composer.addAttachments(paths);
+    } else if (!_accountsSeen) {
+      _pendingFiles = [..._pendingFiles, ...paths];
+    } else {
+      compose(ComposeKind.fresh, attachments: paths);
+    }
+  }
+
+  void compose(ComposeKind kind, {List<String> attachments = const []}) {
     final account =
         _accounts.where((a) => a.id == _mailbox?.account).firstOrNull ??
         _accounts.firstOrNull;
@@ -446,6 +480,7 @@ class MailWindowState extends State<MailWindow> {
         account: account,
         message: message,
         now: _now,
+        attachments: attachments,
       ),
     );
   }

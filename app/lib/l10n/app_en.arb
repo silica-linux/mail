@@ -66,6 +66,8 @@
   "@send": {"description": "Composer button."},
   "cancel": "Cancel",
   "@cancel": {"description": "Button."},
+  "attachments": "Attachments",
+  "@attachments": {"description": "Label of the attachments row in the composer."},
   "attachmentCount": "{count, plural, =1{1 attachment} other{{count} attachments}}",
   "@attachmentCount": {"description": "Above the attachments in the reader.", "placeholders": {"count": {"type": "int"}}},
   "remoteContentBlocked": "Images and other content from the network were not loaded, to protect your privacy.",
