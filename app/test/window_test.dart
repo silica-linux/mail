@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -223,6 +224,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('reader')), findsOneWidget);
     expect(find.byKey(const ValueKey('subject m4')), findsOneWidget);
+  });
+
+  testWidgets('right click on a row: the context menu deletes', (tester) async {
+    final fake = await pump(tester);
+    final at = tester.getCenter(find.byKey(const ValueKey('row m3')));
+    final gesture = await tester.startGesture(
+      at,
+      buttons: kSecondaryMouseButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('Reply All'), findsOneWidget);
+    expect(find.text('Move to'), findsOneWidget);
+    await tester.tap(find.text('Delete'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    final trash = await fake.listMessages(const ListQuery('trash'));
+    expect(trash.map((r) => r.id), contains('m3'));
+  });
+
+  testWidgets('right click on a mailbox: mark all as read, synchronize', (
+    tester,
+  ) async {
+    await pump(tester);
+    final box = find.byKey(const ValueKey('mailbox menu inbox'));
+    final at = tester.getCenter(box);
+    final gesture = await tester.startGesture(
+      at,
+      buttons: kSecondaryMouseButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('Mark All Messages as Read'), findsOneWidget);
+    expect(find.textContaining('Synchronize'), findsOneWidget);
   });
 
   testWidgets('first run: without accounts the setup opens by itself', (

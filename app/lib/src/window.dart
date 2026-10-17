@@ -840,6 +840,118 @@ class MailWindowState extends State<MailWindow> {
   Mailbox? _roleBox(MailboxRole role) =>
       _mailboxes[_mailbox?.account]?.where((m) => m.role == role).firstOrNull;
 
+  /// The context menu of a message row: the row is selected first, so the actions are the ones
+  /// of the Message menu. An item whose target does not exist (no Archive or Junk mailbox) is
+  /// disabled.
+  Future<void> _rowMenu(
+    MessageSummary row,
+    Offset position, {
+    bool single = false,
+  }) async {
+    if (_selected != row.id || _conversation.isEmpty) {
+      _focus.requestFocus();
+      await select(row.id, single: single);
+    }
+    if (!mounted || _selected != row.id) return;
+    final current = _selectedRow ?? row;
+    final ids = {for (final m in _conversation) m.id};
+    final unread = _rows.any((r) => ids.contains(r.id) && r.unread);
+    final archive = _roleBox(MailboxRole.archive);
+    final junk = _roleBox(MailboxRole.junk);
+    final targets = [
+      for (final m in _mailboxes[_mailbox?.account] ?? const <Mailbox>[])
+        if (m.id != _mailbox?.id) m,
+    ];
+    await showAmalfiMenu(
+      context: context,
+      position: position,
+      minWidth: 220,
+      entries: [
+        AmalfiMenuAction(
+          l10n.reply,
+          onSelected: () => compose(ComposeKind.reply),
+        ),
+        AmalfiMenuAction(
+          l10n.replyAll,
+          onSelected: () => compose(ComposeKind.replyAll),
+        ),
+        AmalfiMenuAction(
+          l10n.forward,
+          onSelected: () => compose(ComposeKind.forward),
+        ),
+        const AmalfiMenuDivider(),
+        AmalfiMenuAction(
+          unread ? l10n.menuMarkAsRead : l10n.menuMarkAsUnread,
+          onSelected: () => unawaited(_toggleRead()),
+        ),
+        AmalfiMenuAction(
+          current.flagged ? l10n.menuClearFlag : l10n.menuFlag,
+          onSelected: () => unawaited(_toggleFlag()),
+        ),
+        const AmalfiMenuDivider(),
+        AmalfiMenuAction(
+          l10n.menuMoveTo,
+          enabled: targets.isNotEmpty,
+          submenu: [
+            for (final m in targets)
+              AmalfiMenuAction(
+                mailboxName(m),
+                onSelected: () => unawaited(_moveSelected(m.id)),
+              ),
+          ],
+        ),
+        AmalfiMenuAction(
+          l10n.archive,
+          enabled: archive != null && archive.id != _mailbox?.id,
+          onSelected: () => unawaited(_archive()),
+        ),
+        AmalfiMenuAction(
+          l10n.menuMoveToJunk,
+          enabled: junk != null && junk.id != _mailbox?.id,
+          onSelected: () => unawaited(_junk()),
+        ),
+        const AmalfiMenuDivider(),
+        AmalfiMenuAction(
+          l10n.delete,
+          destructive: true,
+          onSelected: () => unawaited(_delete()),
+        ),
+      ],
+    );
+  }
+
+  /// The context menu of a mailbox in the sidebar.
+  Future<void> _mailboxMenu(
+    Mailbox mailbox,
+    Account account,
+    Offset position,
+  ) async {
+    await showAmalfiMenu(
+      context: context,
+      position: position,
+      minWidth: 220,
+      entries: [
+        AmalfiMenuAction(
+          l10n.menuMarkAllMessagesAsRead,
+          enabled: mailbox.unread > 0,
+          onSelected: () => unawaited(_markMailboxRead(mailbox)),
+        ),
+        AmalfiMenuAction(
+          l10n.menuSynchronize(
+            account.name.isNotEmpty ? account.name : account.address,
+          ),
+          onSelected: () => unawaited(_guard(() => _service.sync(account.id))),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _markMailboxRead(Mailbox mailbox) async {
+    if (mailbox.id != _mailbox?.id) await _selectMailbox(mailbox);
+    if (!mounted) return;
+    await _markAllRead();
+  }
+
   Future<void> _junk() async {
     final row = _selectedRow;
     final junk = _roleBox(MailboxRole.junk);
@@ -1147,13 +1259,19 @@ class MailWindowState extends State<MailWindow> {
       );
       for (final m in _mailboxes[account.id] ?? const <Mailbox>[]) {
         children.add(
-          AmalfiSidebarRow(
-            key: ValueKey('mailbox ${m.id}'),
-            label: mailboxName(m),
-            icon: _mailboxGlyph(m.role),
-            badge: m.unread > 0 ? '${m.unread}' : null,
-            selected: m.id == _mailbox?.id && _searchText == null,
-            onTap: () => _selectMailbox(m),
+          GestureDetector(
+            key: ValueKey('mailbox menu ${m.id}'),
+            behavior: HitTestBehavior.translucent,
+            onSecondaryTapDown: (d) =>
+                unawaited(_mailboxMenu(m, account, d.globalPosition)),
+            child: AmalfiSidebarRow(
+              key: ValueKey('mailbox ${m.id}'),
+              label: mailboxName(m),
+              icon: _mailboxGlyph(m.role),
+              badge: m.unread > 0 ? '${m.unread}' : null,
+              selected: m.id == _mailbox?.id && _searchText == null,
+              onTap: () => _selectMailbox(m),
+            ),
           ),
         );
       }
@@ -1401,6 +1519,7 @@ class MailWindowState extends State<MailWindow> {
         _focus.requestFocus();
         select(row.id);
       },
+      onSecondaryTapDown: (d) => unawaited(_rowMenu(row, d.globalPosition)),
       child: SizedBox(
         height: MailMetrics.listRow,
         child: Stack(
@@ -1584,6 +1703,8 @@ class MailWindowState extends State<MailWindow> {
         _focus.requestFocus();
         select(row.id, single: true);
       },
+      onSecondaryTapDown: (d) =>
+          unawaited(_rowMenu(row, d.globalPosition, single: true)),
       child: Container(
         height: MailMetrics.threadChildRow,
         decoration: ShapeDecoration(
