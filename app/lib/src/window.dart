@@ -1271,6 +1271,9 @@ class MailWindowState extends State<MailWindow> {
   // MARK: sidebar
 
   Widget _sidebar(MailColors colors) {
+    // Section glyph colours (silica-ui#95): the search section and every account's mailboxes
+    // are `Accent/Amalfi`; Mail has no Favourites or local-folder section.
+    final accent = AmalfiTheme.of(context).colors.accentAmalfi;
     final children = <Widget>[];
     if (_searchText != null) {
       children
@@ -1280,6 +1283,7 @@ class MailWindowState extends State<MailWindow> {
             key: const ValueKey('all mailboxes'),
             label: l10n.allMailboxes,
             icon: AmalfiGlyphs.search,
+            glyphColor: accent,
             badge: '${_rows.length}',
             selected: true,
           ),
@@ -1302,6 +1306,7 @@ class MailWindowState extends State<MailWindow> {
               key: ValueKey('mailbox ${m.id}'),
               label: mailboxName(m),
               icon: _mailboxGlyph(m.role),
+              glyphColor: accent,
               badge: m.unread > 0 ? '${m.unread}' : null,
               selected: m.id == _mailbox?.id && _searchText == null,
               onTap: () => _selectMailbox(m),
