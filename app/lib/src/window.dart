@@ -867,7 +867,6 @@ class MailWindowState extends State<MailWindow> {
     child: AmalfiToolbar.sidebarSection(
       key: const ValueKey('sidebar bar'),
       surface: AmalfiToolbarSurface.blur,
-      edge: true,
       children: [_controlsSlot, const AmalfiSpacerPiece(), _sidebarToggle()],
     ),
   );
