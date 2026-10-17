@@ -513,6 +513,40 @@ void main() {
     expect(find.byKey(const ValueKey('sidebar')), findsOneWidget);
   });
 
+  testWidgets('the sidebar slides on the measured timing and the toggle stays '
+      'one widget', (tester) async {
+    await pump(tester);
+    final toggle = find.byKey(const ValueKey('sidebar toggle'));
+    final sidebar = find.byKey(const ValueKey('sidebar'));
+    double listLeft() =>
+        tester.getRect(find.byKey(const ValueKey('list bar'))).left;
+    expect(listLeft(), MailMetrics.sidebarWidth);
+    await tester.tap(toggle);
+    await tester.pump();
+    // Closing: 240 ms on the S curve; halfway through the sidebar is partly out.
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(toggle, findsOneWidget);
+    expect(sidebar, findsOneWidget);
+    expect(listLeft(), inExclusiveRange(0, MailMetrics.sidebarWidth));
+    await tester.pump(const Duration(milliseconds: 119));
+    expect(listLeft(), greaterThan(0));
+    await tester.pump(const Duration(milliseconds: 2));
+    expect(listLeft(), 0);
+    expect(sidebar, findsNothing);
+    expect(toggle, findsOneWidget);
+    // Opening starts 40 ms after the trigger and takes 230 ms.
+    await tester.tap(toggle);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(listLeft(), 0);
+    await tester.pump(const Duration(milliseconds: 115));
+    expect(listLeft(), inExclusiveRange(0, MailMetrics.sidebarWidth));
+    expect(toggle, findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 116));
+    expect(listLeft(), MailMetrics.sidebarWidth);
+    expect(toggle, findsOneWidget);
+  });
+
   testWidgets('the sidebar runs up behind its own section, with the sidebar '
       'button (mail#7)', (tester) async {
     await pump(tester);

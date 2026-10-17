@@ -4,6 +4,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -740,14 +741,6 @@ class MailWindowState extends State<MailWindow> {
               child: Stack(
                 children: [
                   Positioned.fill(child: _layout(colors)),
-                  if (_hasBanner)
-                    Positioned(
-                      left: _sidebarShown ? MailMetrics.sidebarWidth : 0,
-                      right: 0,
-                      top: MailMetrics.toolbar,
-                      height: MailMetrics.bannerHeight,
-                      child: _bannerBar(colors),
-                    ),
                   if (_suggesting && _query.text.trim().isNotEmpty)
                     Positioned(
                       top: MailMetrics.toolbar - 6,
@@ -778,36 +771,106 @@ class MailWindowState extends State<MailWindow> {
 
   /// The three columns, each with its own toolbar section (kit `Apps/Mail/Inbox`): the
   /// sidebar (240) running up behind its section, the list (320) and the reader.
-  Widget _layout(MailColors colors) => AmalfiSplitWindowLayout(
-    columns: [
-      if (_sidebarShown)
-        AmalfiWindowColumn(
-          width: MailMetrics.sidebarWidth,
-          toolbar: _sidebarToolbar(),
-          toolbarOverChild: true,
-          ownEdge: true,
-          child: _sidebar(colors),
-        ),
-      AmalfiWindowColumn(
-        width: MailMetrics.listWidth,
-        toolbar: _listToolbar(colors),
-        child: Padding(
-          padding: EdgeInsets.only(top: _bannerInset),
-          child: _list(colors),
-        ),
-      ),
-      AmalfiWindowColumn(
-        toolbar: _readerToolbar(colors),
-        child: ColoredBox(
-          color: colors.reader,
-          child: Padding(
-            padding: EdgeInsets.only(top: _bannerInset),
-            child: _reader(colors),
+  ///
+  /// The sidebar slides from the leading edge on [AmalfiSidebarRevealBuilder]'s measured timing
+  /// while the list and the reader (and the message bar) follow the content edge; the sidebar
+  /// toggle is one widget over the bars, riding the sidebar's trailing edge down to the controls.
+  Widget _layout(MailColors colors) => AmalfiSidebarRevealBuilder(
+    visible: _sidebarShown,
+    builder: (context, progress) {
+      final shown = MailMetrics.sidebarWidth * progress;
+      // The list's toolbar starts after the controls and the toggle once the sidebar is gone.
+      final inset = math.max(
+        AmalfiToolbarMetrics.sectionPadding.left,
+        _toggleReserve - shown,
+      );
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned(
+            left: shown,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: AmalfiSplitWindowLayout(
+                    columns: [
+                      AmalfiWindowColumn(
+                        width: MailMetrics.listWidth,
+                        toolbar: _listToolbar(colors, inset),
+                        child: Padding(
+                          padding: EdgeInsets.only(top: _bannerInset),
+                          child: _list(colors),
+                        ),
+                      ),
+                      AmalfiWindowColumn(
+                        toolbar: _readerToolbar(colors),
+                        child: ColoredBox(
+                          color: colors.reader,
+                          child: Padding(
+                            padding: EdgeInsets.only(top: _bannerInset),
+                            child: _reader(colors),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_hasBanner)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: MailMetrics.toolbar,
+                    height: MailMetrics.bannerHeight,
+                    child: _bannerBar(colors),
+                  ),
+              ],
+            ),
           ),
-        ),
-      ),
-    ],
+          if (progress > 0)
+            Positioned(
+              left: shown - MailMetrics.sidebarWidth,
+              top: 0,
+              bottom: 0,
+              width: MailMetrics.sidebarWidth,
+              child: ColoredBox(
+                color: colors.sidebar,
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: _sidebar(colors)),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      height: MailMetrics.toolbar,
+                      child: _sidebarToolbar(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          // The one toggle: at the sidebar's trailing edge, stopping after the controls.
+          Positioned(
+            left: 0,
+            top: 0,
+            height: MailMetrics.toolbar,
+            width: math.max(shown - 8, _toggleReserve),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _sidebarToggle(),
+            ),
+          ),
+        ],
+      );
+    },
   );
+
+  /// Where the toggle ends when the sidebar is hidden: the controls slot and the toggle piece.
+  static const double _toggleReserve =
+      AmalfiToolbarPieceMetrics.controlsWidth + _togglePieceWidth;
+  static const double _togglePieceWidth = 44;
 
   /// The space the message bar takes under the toolbar.
   double get _bannerInset => _hasBanner ? MailMetrics.bannerHeight : 0;
@@ -867,7 +930,7 @@ class MailWindowState extends State<MailWindow> {
     child: AmalfiToolbar.sidebarSection(
       key: const ValueKey('sidebar bar'),
       surface: AmalfiToolbarSurface.blur,
-      children: [_controlsSlot, const AmalfiSpacerPiece(), _sidebarToggle()],
+      children: [_controlsSlot, const AmalfiSpacerPiece()],
     ),
   );
 
@@ -995,7 +1058,7 @@ class MailWindowState extends State<MailWindow> {
 
   /// The title block (kit `Titlebars/Piece/Title + Subtitle`) and the filter group (kit
   /// `Apps/Mail/Toolbar List`).
-  Widget _listToolbar(MailColors colors) {
+  Widget _listToolbar(MailColors colors, double inset) {
     final mailbox = _mailbox;
     final searching = _searchText != null;
     final title = searching
@@ -1012,11 +1075,8 @@ class MailWindowState extends State<MailWindow> {
     return WindowDragArea(
       child: AmalfiToolbar.section(
         key: const ValueKey('list bar'),
-        padding: _sidebarShown
-            ? AmalfiToolbarMetrics.sectionPadding
-            : AmalfiToolbarMetrics.sidebarSectionPadding,
+        padding: EdgeInsets.only(left: inset, right: 8),
         children: [
-          if (!_sidebarShown) ...[_controlsSlot, _sidebarToggle()],
           Expanded(
             child: Align(
               alignment: Alignment.centerLeft,
