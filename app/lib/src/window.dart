@@ -4,7 +4,6 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -780,9 +779,10 @@ class MailWindowState extends State<MailWindow> {
     builder: (context, progress) {
       final shown = MailMetrics.sidebarWidth * progress;
       // The list's toolbar starts after the controls and the toggle once the sidebar is gone.
-      final inset = math.max(
-        AmalfiToolbarMetrics.sectionPadding.left,
-        _toggleReserve - shown,
+      final inset = AmalfiToolbarFollow.inset(
+        edge: shown,
+        closedX: _toggleReserve,
+        offset: AmalfiToolbarMetrics.sectionPadding.left,
       );
       return Stack(
         fit: StackFit.expand,
@@ -851,16 +851,11 @@ class MailWindowState extends State<MailWindow> {
                 ),
               ),
             ),
-          // The one toggle: at the sidebar's trailing edge, stopping after the controls.
-          Positioned(
-            left: 0,
-            top: 0,
+          // The one toggle: x = max(96, edge - 52), stopping after the controls.
+          AmalfiToolbarFollower(
+            edge: shown,
             height: MailMetrics.toolbar,
-            width: math.max(shown - 8, _toggleReserve),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: _sidebarToggle(),
-            ),
+            child: _sidebarToggle(),
           ),
         ],
       );
